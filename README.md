@@ -1,0 +1,146 @@
+# Quizme
+
+The goal of this project is to continuously test and strengthen my knowledge across my full-stack development domain.
+
+It is an AI-generated daily quiz system that creates a new set of questions every day based on topics I’m weak in, while also introducing fresh topics to keep the practice varied and well-rounded.
+
+
+## Features
+
+- Questions auto-generated daily via the AI API
+- Adaptive topic selection — weak topics show up more often (70% weak / 30% random)
+- Fully automated via a GitHub Actions scheduled workflow — no server-side cron needed
+- Webhook notifications (currently wired to LINE) when a new quiz is ready
+- Self-hosted on your own infrastructure via Docker
+
+## Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Backend | Go + [Gin](https://gin-gonic.com/) |
+| Database | PostgreSQL |
+| Frontend | React (Vite) |
+| Scheduler | GitHub Actions (cron) |
+| LLM | Any API of your  chioce (Haiku) |
+| Notifications | Webhook → LINE Messaging API |
+| Deployment | Docker / docker-compose, self-hosted |
+
+## Architecture
+
+```
+GitHub Actions (cron, daily)
+        │  POST /internal/generate
+        ▼
+Go Backend (Gin) ── AI API ── Validator ── Postgres
+        │
+        ▼
+   Webhook → LINE
+        ▲
+        │
+React Frontend (fetches /quiz/today, submits /quiz/answer)
+```
+
+See [`docs/spec.md`](./docs/spec.md) for the full requirements and design spec.
+
+## Project Structure
+
+```
+quizeme/
+├── cmd/
+│   └── server/main.go           # entrypoint
+├── internal/
+│   ├── handler/                 # HTTP handlers (Gin)
+│   ├── service/                 # business logic (topic selection, generation flow)
+│   ├── repository/              # DB access layer (Postgres)
+│   ├── ai/                      # ai API client
+│   └── model/                   # shared structs
+├── migrations/                  # SQL migration files
+├── frontend/                    # React app
+├── .github/workflows/
+│   └── daily-generate.yml       # scheduled trigger
+├── Dockerfile
+├── docker-compose.yml
+└── go.mod
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Go 1.22+
+- Node.js 18+ (for the frontend)
+- Docker & docker-compose
+- An AI API key
+- A LINE Official Account with a Messaging API channel (Channel Access Token + your own `userId`)
+  > Note: LINE Notify was discontinued on March 31, 2025 — this project uses the LINE Messaging API instead.
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+DATABASE_URL=postgres://user:password@localhost:5432/quizme?sslmode=disable
+AI_API_KEY=your_ai_key
+INTERNAL_AUTH_TOKEN=some_random_secret   # protects /internal/generate
+WEBHOOK_URL=https://your-relay-or-line-endpoint
+LINE_CHANNEL_ACCESS_TOKEN=your_line_token
+LINE_USER_ID=your_line_user_id
+```
+
+### Run locally
+
+```bash
+# start Postgres + backend
+docker-compose up -d
+
+# run DB migrations
+go run ./cmd/migrate up
+
+# start the backend (if not using docker-compose for dev)
+go run ./cmd/server
+
+# start the frontend
+cd frontend
+npm install
+npm run dev
+```
+
+### Trigger a manual generation (for testing)
+
+```bash
+curl -X POST http://localhost:8080/internal/generate \
+  -H "Authorization: Bearer $INTERNAL_AUTH_TOKEN"
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/quiz/today` | Fetch today's 5 questions |
+| POST | `/quiz/answer` | Submit an answer, get correct/incorrect + explanation |
+| GET | `/stats` | Per-topic accuracy stats |
+| GET | `/topics` | List all topics |
+| POST | `/topics` | Add a new topic |
+| POST | `/internal/generate` | Trigger question generation (called by GitHub Actions) |
+
+## Deployment
+
+The backend, frontend, and Postgres run together via `docker-compose` on a self-hosted homelab. A GitHub Actions scheduled workflow calls `/internal/generate` daily at 06:00 ICT; the endpoint is exposed externally via a Cloudflare Tunnel (or similar) so GitHub Actions can reach it.
+
+```yaml
+# .github/workflows/daily-generate.yml (excerpt)
+on:
+  schedule:
+    - cron: "0 23 * * *"   # 06:00 ICT
+  workflow_dispatch: {}
+```
+
+## Roadmap
+
+- [ ] Multi-user support with authentication
+- [ ] Adaptive difficulty tuning
+- [ ] Leaderboard
+- [ ] Mobile-friendly UI improvements
+
+## License
+MIT — see [`LICENSE`](./LICENSE) for details.
