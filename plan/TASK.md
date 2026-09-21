@@ -7,16 +7,16 @@ Each `TASK-N/TODO.md` contains the actionable checklist for that task.
 | # | Task | Depends on | Spec refs | Status |
 |---|------|-----------|-----------|--------|
 | 1 | Project skeleton & Phase 0 setup | — (start) | §6, §11 | done |
-| 2 | Repository layer | TASK-1 | §6 |
-| 3 | AI client + validator | TASK-1 | §9, FR-1, FR-2 |
-| 4 | Service layer (generation + adaptive selection) | TASK-2, TASK-3 | §8, §10, FR-6, FR-8, FR-9 |
-| 5 | Webhook notifier | TASK-4 | §10, FR-10 |
-| 6 | API layer (Gin) | TASK-4, TASK-5 | §7, FR-3, FR-4, FR-7 |
-| 7 | Unit tests | TASK-3, TASK-4 (parallel-friendly) | FR-2, FR-6, FR-8 |
-| 8 | Frontend (React/Vite) | TASK-6 | §7 (API contract) |
-| 9 | Deployment | TASK-1–6, TASK-8 | NFR-1 |
-| 10 | Scheduler (GitHub Actions) | TASK-6, TASK-9 | NFR-2 |
-| 11 | E2E validation & tuning | all | FR-2, NFR-5 |
+| 2 | Repository layer | TASK-1 | §6 | todo |
+| 3 | AI client + validator | TASK-1 | §9, FR-1, FR-2 | todo |
+| 4 | Service layer (generation + adaptive selection) | TASK-2, TASK-3 | §8, §10, FR-6, FR-8, FR-9 | todo |
+| 5 | Webhook notifier | TASK-4 | §10, FR-10 | todo |
+| 6 | API layer (Gin) | TASK-4, TASK-5 | §7, FR-3, FR-4, FR-7 | todo |
+| 7 | Unit tests | TASK-3, TASK-4 (parallel-friendly) | FR-2, FR-6, FR-8 | todo |
+| 8 | Frontend (React/Vite) | TASK-6 | §7 (API contract) | todo |
+| 9 | Deployment | TASK-1–6, TASK-8 | NFR-1 | todo |
+| 10 | Scheduler (GitHub Actions) | TASK-6, TASK-9 | NFR-2 | todo |
+| 11 | E2E validation & tuning | all | FR-2, NFR-5 | todo |
 
 ---
 
