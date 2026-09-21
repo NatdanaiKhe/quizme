@@ -40,7 +40,7 @@ Go Backend (Gin) ── AI API ── Validator ── Postgres
 React Frontend (fetches /quiz/today, submits /quiz/answer)
 ```
 
-See [`docs/spec.md`](./docs/spec.md) for the full requirements and design spec.
+See [`REQUIREMENT.md`](./REQUIREMENT.md) for the full requirements and design spec.
 
 ## Project Structure
 
@@ -67,7 +67,7 @@ quizeme/
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.26+
 - Node.js 18+ (for the frontend)
 - Docker & docker-compose
 - An AI API key
@@ -79,37 +79,37 @@ quizeme/
 Create a `.env` file in the project root:
 
 ```env
-DATABASE_URL=postgres://user:password@localhost:5432/quizme?sslmode=disable
+DATABASE_URL=postgres://quizme:quizme@localhost:5432/quizme?sslmode=disable
 AI_API_KEY=your_ai_key
-INTERNAL_AUTH_TOKEN=some_random_secret   # protects /internal/generate
+INTERNAL_TOKEN=some_random_secret   # protects /internal/generate
 WEBHOOK_URL=https://your-relay-or-line-endpoint
-LINE_CHANNEL_ACCESS_TOKEN=your_line_token
-LINE_USER_ID=your_line_user_id
 ```
 
 ### Run locally
 
 ```bash
-# start Postgres + backend
-docker-compose up -d
+# Copy example env and fill secrets (optional for TASK-1)
+cp .env.example .env
 
-# run DB migrations
-go run ./cmd/migrate up
+# Start Postgres + run migrations + backend
+docker compose up -d
 
-# start the backend (if not using docker-compose for dev)
+# Or run the backend directly (Postgres must be reachable)
 go run ./cmd/server
 
-# start the frontend
-cd frontend
-npm install
-npm run dev
+# Health check
+curl http://localhost:8080/health
+
+# Migrations are run automatically by docker compose.
+# To run migrations manually with golang-migrate:
+migrate -path migrations -database "$DATABASE_URL" up
 ```
 
 ### Trigger a manual generation (for testing)
 
 ```bash
 curl -X POST http://localhost:8080/internal/generate \
-  -H "Authorization: Bearer $INTERNAL_AUTH_TOKEN"
+  -H "Authorization: Bearer $INTERNAL_TOKEN"
 ```
 
 ## API Endpoints

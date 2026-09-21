@@ -1,0 +1,26 @@
+# Local env
+.env
+
+# Binaries
+quizme
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+vendor/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Docker volumes
+docker-data/

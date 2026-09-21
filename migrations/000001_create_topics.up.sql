@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS topics (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    weight INT DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
