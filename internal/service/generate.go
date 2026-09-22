@@ -32,9 +32,23 @@ type Notifier interface {
 	Notify(ctx context.Context, payload GenerateResult) error
 }
 
+// Repository is the minimal surface the service needs from the data layer.
+// It is satisfied by *repository.Repo and by test doubles.
+type Repository interface {
+	GetOrCreateBatch(ctx context.Context, batchDate time.Time) (model.QuizBatch, bool, error)
+	GetBatchByDate(ctx context.Context, batchDate time.Time) (model.QuizBatch, error)
+	LatestSuccessfulBatch(ctx context.Context) (model.QuizBatch, error)
+	GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Question, error)
+	UpdateBatchStatus(ctx context.Context, id int, status string) error
+	ListTopics(ctx context.Context) ([]model.Topic, error)
+	GetStats(ctx context.Context) ([]model.UserTopicStats, error)
+	InsertQuestions(ctx context.Context, batchID int, questions []model.Question) error
+	InsertGenerationLog(ctx context.Context, log model.GenerationLog) (model.GenerationLog, error)
+}
+
 // Service implements the generation and quiz business logic.
 type Service struct {
-	Repo     *repository.Repo
+	Repo     Repository
 	AI       AIGenerator
 	Notifier Notifier
 	Now      func() time.Time
@@ -154,7 +168,7 @@ func (s *Service) succeedBatch(ctx context.Context, batch model.QuizBatch, quest
 		return s.failBatch(ctx, batch, tokens, err)
 	}
 	if err := s.Repo.UpdateBatchStatus(ctx, batch.ID, "success"); err != nil {
-		return err
+		return s.failBatch(ctx, batch, tokens, err)
 	}
 	s.log(ctx, batch.ID, "success", nil, tokens)
 	s.notify(ctx, GenerateResult{
@@ -167,7 +181,7 @@ func (s *Service) succeedBatch(ctx context.Context, batch model.QuizBatch, quest
 }
 
 func (s *Service) failBatch(ctx context.Context, batch model.QuizBatch, tokens int, err error) error {
-	_ = s.Repo.UpdateBatchStatus(ctx, batch.ID, "failed")
+	statusErr := s.Repo.UpdateBatchStatus(ctx, batch.ID, "failed")
 	msg := err.Error()
 	s.log(ctx, batch.ID, "failed", &msg, tokens)
 	s.notify(ctx, GenerateResult{
@@ -175,6 +189,9 @@ func (s *Service) failBatch(ctx context.Context, batch model.QuizBatch, tokens i
 		Status:    "failed",
 		Error:     err,
 	})
+	if statusErr != nil {
+		return errors.Join(err, statusErr)
+	}
 	return err
 }
 

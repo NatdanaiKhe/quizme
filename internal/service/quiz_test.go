@@ -58,6 +58,43 @@ func TestGetTodayQuizFallback(t *testing.T) {
 	}
 }
 
+func TestGetTodayQuizDBErrorNotFallback(t *testing.T) {
+	r := testDB(t)
+	ctx := context.Background()
+
+	yesterday := time.Date(2026, 9, 21, 0, 0, 0, 0, time.UTC)
+	oldBatch, _, err := r.GetOrCreateBatch(ctx, yesterday)
+	if err != nil {
+		t.Fatalf("create yesterday batch: %v", err)
+	}
+	if err := r.UpdateBatchStatus(ctx, oldBatch.ID, "success"); err != nil {
+		t.Fatalf("update yesterday batch status: %v", err)
+	}
+	if err := r.InsertQuestions(ctx, oldBatch.ID, []model.Question{
+		{
+			TopicID:       1,
+			Prompt:        "Old question",
+			Options:       []model.Option{{ID: "a", Text: "A"}, {ID: "b", Text: "B"}, {ID: "c", Text: "C"}, {ID: "d", Text: "D"}},
+			CorrectOption: "a",
+			Explanation:   strPtr("old"),
+			Source:        "ai_generated",
+		},
+	}); err != nil {
+		t.Fatalf("insert old questions: %v", err)
+	}
+
+	svc := newTestService(r, &fakeAI{})
+	svc.Repo = errBatchRepo{Repository: r, err: errors.New("db unavailable")}
+
+	_, _, err = svc.GetTodayQuiz(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if errors.Is(err, ErrNoQuiz) {
+		t.Fatal("expected real DB error, not ErrNoQuiz fallback")
+	}
+}
+
 func TestGetTodayQuizErrNoQuiz(t *testing.T) {
 	r := testDB(t)
 	ctx := context.Background()

@@ -18,7 +18,11 @@ func (s *Service) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Qu
 	today := s.Now().UTC().Truncate(24 * time.Hour)
 
 	batch, err := s.Repo.GetBatchByDate(ctx, today)
-	if err == nil && batch.Status == "success" {
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return model.QuizBatch{}, nil, err
+		}
+	} else if batch.Status == "success" {
 		questions, err := s.Repo.GetQuestionsByBatch(ctx, batch.ID)
 		if err != nil {
 			return model.QuizBatch{}, nil, err

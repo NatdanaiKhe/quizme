@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/natdanai/quizme/internal/ai"
 	"github.com/natdanai/quizme/internal/model"
-	"github.com/natdanai/quizme/internal/repository"
 )
 
 type fakeAI struct {
@@ -237,7 +237,44 @@ func TestGenerateIntegrationValidationRetryOnceThenFail(t *testing.T) {
 	}
 }
 
-func newTestService(r *repository.Repo, f *fakeAI) *Service {
+func TestSucceedBatchStatusUpdateFailure(t *testing.T) {
+	r := testDB(t)
+	ctx := context.Background()
+
+	f := &fakeAI{results: []fakeAIResult{
+		{qs: makeQuestions([]string{"Frontend", "Backend", "Infrastructure"}, 5), tokens: 99},
+	}}
+	svc := newTestService(failingStatusRepo{Repository: r, err: errors.New("status update failed")}, f)
+
+	err := svc.Generate(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	batch, err := r.GetBatchByDate(ctx, svc.Now().UTC().Truncate(24*time.Hour))
+	if err != nil {
+		t.Fatalf("GetBatchByDate: %v", err)
+	}
+	if batch.Status != "failed" {
+		t.Fatalf("want batch status failed, got %q", batch.Status)
+	}
+
+	logs, err := r.RecentGenerationLogs(ctx, 10)
+	if err != nil {
+		t.Fatalf("RecentGenerationLogs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("want 1 log row, got %d", len(logs))
+	}
+	if logs[0].Status != "failed" {
+		t.Fatalf("want log status failed, got %q", logs[0].Status)
+	}
+	if logs[0].ErrorMessage == nil || *logs[0].ErrorMessage != "status update failed" {
+		t.Fatalf("want log error message 'status update failed', got %v", logs[0].ErrorMessage)
+	}
+}
+
+func newTestService(r Repository, f *fakeAI) *Service {
 	return &Service{
 		Repo: r,
 		AI:   f,
