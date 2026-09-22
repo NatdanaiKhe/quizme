@@ -244,6 +244,56 @@ func TestSubmitAnswer(t *testing.T) {
 	}
 }
 
+func TestSubmitAnswerMultiAnswerRounding(t *testing.T) {
+	r := testDB(t)
+	ctx := context.Background()
+
+	topics, _ := r.ListTopics(ctx)
+	topic := topics[0]
+	batch, _, _ := r.GetOrCreateBatch(ctx, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	q := model.Question{
+		TopicID:       topic.ID,
+		Prompt:        "Q1",
+		Options:       []model.Option{{ID: "a", Text: "yes"}, {ID: "b", Text: "no"}},
+		CorrectOption: "a",
+		Source:        "test",
+	}
+	if err := r.InsertQuestions(ctx, batch.ID, []model.Question{q}); err != nil {
+		t.Fatalf("InsertQuestions: %v", err)
+	}
+	questions, _ := r.GetQuestionsByBatch(ctx, batch.ID)
+	qid := questions[0].ID
+
+	// correct, wrong, correct -> 2/3 -> 66.67 (NUMERIC(5,2) rounding).
+	for _, correct := range []bool{true, false, true} {
+		selected := "b"
+		if correct {
+			selected = "a"
+		}
+		if err := r.SubmitAnswer(ctx, qid, selected, correct); err != nil {
+			t.Fatalf("SubmitAnswer %v: %v", correct, err)
+		}
+	}
+
+	stats, err := r.GetStats(ctx)
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if len(stats) != 1 {
+		t.Fatalf("want 1 stats row, got %d", len(stats))
+	}
+	s := stats[0]
+	if s.CorrectCount != 2 || s.WrongCount != 1 {
+		t.Fatalf("want counts 2/1, got %+v", s)
+	}
+	if s.AccuracyRate != 66.67 {
+		t.Fatalf("want accuracy 66.67, got %v", s.AccuracyRate)
+	}
+	if s.LastPracticedAt == nil {
+		t.Fatal("expected LastPracticedAt to be set")
+	}
+}
+
 func TestSubmitAnswerRollback(t *testing.T) {
 	r := testDB(t)
 	ctx := context.Background()

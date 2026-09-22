@@ -111,6 +111,27 @@ func TestParseAndValidate(t *testing.T) {
 			wantValid: false,
 		},
 		{
+			name: "correct option empty",
+			raw: func() string {
+				q := validQuestion("Frontend", "")
+				b, _ := json.Marshal([]GeneratedQuestion{q, q, q, q, q})
+				return string(b)
+			}(),
+			n:         5,
+			wantValid: false,
+		},
+		{
+			name: "missing topic key",
+			raw: func() string {
+				q := validQuestion("Frontend", "b")
+				q.Topic = ""
+				b, _ := json.Marshal([]GeneratedQuestion{q, q, q, q, q})
+				return string(b)
+			}(),
+			n:         5,
+			wantValid: false,
+		},
+		{
 			name: "correct option uppercase B",
 			raw: func() string {
 				q := validQuestion("Frontend", "B")
@@ -220,6 +241,36 @@ func TestParseFenceVariants(t *testing.T) {
 		if err := Validate(qs, 5, []string{"Frontend"}); err != nil {
 			t.Fatalf("variant %d validate failed: %v", i, err)
 		}
+	}
+}
+
+func TestValidationErrorNamesItem(t *testing.T) {
+	qs := make([]GeneratedQuestion, 5)
+	for i := range qs {
+		qs[i] = validQuestion("Frontend", "b")
+	}
+	qs[2].CorrectOption = "x"
+	qs[4].Options[0].ID = ""
+
+	err := Validate(qs, 5, []string{"Frontend"})
+	v, ok := err.(*ValidationError)
+	if !ok {
+		t.Fatalf("expected *ValidationError, got %T", err)
+	}
+	hasQ2, hasQ4 := false, false
+	for _, r := range v.Reasons {
+		if strings.Contains(r, "q[2]") {
+			hasQ2 = true
+		}
+		if strings.Contains(r, "q[4]") {
+			hasQ4 = true
+		}
+	}
+	if !hasQ2 {
+		t.Fatalf("expected reason naming q[2], got: %v", err)
+	}
+	if !hasQ4 {
+		t.Fatalf("expected reason naming q[4], got: %v", err)
 	}
 }
 

@@ -21,7 +21,7 @@ It is an AI-generated daily quiz system that creates a new set of questions ever
 | Database | PostgreSQL |
 | Frontend | React (Vite) |
 | Scheduler | GitHub Actions (cron) |
-| LLM | Any API of your  chioce (Haiku) |
+| LLM | Any API of your choice |
 | Notifications | Webhook → LINE Messaging API |
 | Deployment | Docker / docker-compose, self-hosted |
 
@@ -45,7 +45,7 @@ See [`REQUIREMENT.md`](./REQUIREMENT.md) for the full requirements and design sp
 ## Project Structure
 
 ```
-quizeme/
+quizme/
 ├── cmd/
 │   └── server/main.go           # entrypoint
 ├── internal/
@@ -80,9 +80,13 @@ Create a `.env` file in the project root:
 
 ```env
 DATABASE_URL=postgres://quizme:quizme@localhost:5432/quizme?sslmode=disable
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
 AI_API_KEY=your_ai_key
 INTERNAL_TOKEN=some_random_secret   # protects /internal/generate
 WEBHOOK_URL=https://your-relay-or-line-endpoint
+PORT=8080
+CORS_ORIGIN=http://localhost:5173
 ```
 
 ### Run locally
@@ -111,6 +115,18 @@ migrate -path migrations -database "$DATABASE_URL" up
 curl -X POST http://localhost:8080/internal/generate \
   -H "Authorization: Bearer $INTERNAL_TOKEN"
 ```
+
+## Testing
+
+```bash
+# Unit tests (pure logic, no database)
+go test ./...
+
+# Race-detector run for concurrent service/AI paths
+go test -race ./internal/service/ ./internal/ai/
+```
+
+Some integration tests require `TEST_DATABASE_URL` and will skip otherwise. **WARNING: those tests `TRUNCATE` all tables — never point `TEST_DATABASE_URL` at a database you care about.**
 
 ## API Endpoints
 

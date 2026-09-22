@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/natdanai/quizme/internal/ai"
@@ -211,6 +212,10 @@ func (s *Service) log(ctx context.Context, batchID int, status string, msg *stri
 	})
 }
 
+func normalizeTopic(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
 func (s *Service) notify(ctx context.Context, r GenerateResult) {
 	if s.Notifier == nil {
 		return
@@ -228,12 +233,12 @@ func (s *Service) notify(ctx context.Context, r GenerateResult) {
 func toQuestions(generated []ai.GeneratedQuestion, topics []model.Topic) ([]model.Question, error) {
 	byName := make(map[string]int, len(topics))
 	for _, t := range topics {
-		byName[t.Name] = t.ID
+		byName[normalizeTopic(t.Name)] = t.ID
 	}
 
 	questions := make([]model.Question, len(generated))
 	for i, g := range generated {
-		topicID, ok := byName[g.Topic]
+		topicID, ok := byName[normalizeTopic(g.Topic)]
 		if !ok {
 			return nil, fmt.Errorf("unknown topic %q", g.Topic)
 		}

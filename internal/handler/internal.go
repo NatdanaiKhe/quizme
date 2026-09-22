@@ -16,9 +16,15 @@ type GenerateService interface {
 }
 
 // InternalAuth returns a Gin middleware that requires a Bearer token equal to
-// wantToken using constant-time comparison.
+// wantToken using constant-time comparison. An empty wantToken is rejected
+// outright so that an unset INTERNAL_TOKEN never accepts any request.
 func InternalAuth(wantToken string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if strings.TrimSpace(wantToken) == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			c.Abort()
+			return
+		}
 		auth := c.GetHeader("Authorization")
 		const prefix = "Bearer "
 		if !strings.HasPrefix(auth, prefix) {
@@ -27,7 +33,7 @@ func InternalAuth(wantToken string) gin.HandlerFunc {
 			return
 		}
 		got := strings.TrimPrefix(auth, prefix)
-		if subtle.ConstantTimeCompare([]byte(got), []byte(wantToken)) != 1 {
+		if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(got)), []byte(wantToken)) != 1 {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			c.Abort()
 			return

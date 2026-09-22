@@ -190,3 +190,38 @@ Implemented API layer (Gin) per `plan/TASK-6/PLAN.md`, `TODO.md`, `REQUIREMENT.m
 
 ### Blockers
 - Full live-AI end-to-end of `/internal/generate` is blocked on `AI_API_KEY` (user-owned). Idempotency/auth paths are verified.
+
+## 2026-09-22 — TASK-7 done
+
+Implemented TASK-7 backend hardening and test coverage per `plan/TASK-7/PLAN.md`, `TODO.md`, `REQUIREMENT.md` FR-2/FR-6/FR-8.
+
+### Changed
+- `internal/service/selection_test.go`: added distribution-band, never-all-one-topic, more-topics-than-n, and equal-accuracy tie-break tests.
+- `internal/ai/validate_test.go`: added `correct_option: ""`, missing `topic` key, and `q[i]` naming assertions.
+- `internal/service/generate_test.go`: added AI-error-then-success retry test, `toQuestions` topic-name normalization test, pending-with-questions finalize test, and failed-batch reset+retry test.
+- `internal/repository/repo_test.go`: added hand-computed 3-answer sequence test (correct/wrong/correct → 2/3 → 66.67).
+- `internal/handler/handler_test.go`: added empty/unset `INTERNAL_TOKEN` regression test.
+- `internal/handler/internal.go`: reject empty `wantToken` and trim supplied bearer token before constant-time compare.
+- `internal/service/generate.go`: normalize AI topic names before mapping to DB topic IDs.
+- `README.md`: added Testing section, missing env vars, fixed typos.
+- `plan/TASK-7/TODO.md`: all checkboxes ticked.
+- `plan/TASK.md` and `plan/OVERVIEW.md`: TASK-7 marked done.
+- Created `plan/TASK-7/NOTES.md` with baseline gates, read-only migration verification, security/reliability review, backlog, and failing-branch spot-check evidence.
+
+### Verified
+- `gofmt -w .` clean.
+- `go build ./...` green.
+- `go vet ./...` green.
+- `go test ./...` green (DB-gated tests skip cleanly without `TEST_DATABASE_URL`).
+- `go test -race ./internal/service/ ./internal/ai/` green.
+- Read-only migration verification against the running Postgres container: `schema_migrations` version 7, dirty false, all §6 tables present, expected constraints and FKs, seed topics present.
+- Failing-branch spot check: temporarily accepted option id `"e"`; `go test ./internal/ai/` failed as expected; restored strict check.
+
+### Warnings
+- **Never point `TEST_DATABASE_URL` at the user's real database.** DB-gated tests `TRUNCATE` all tables. They were left to skip in this task.
+- `.env` `DATABASE_URL` (`postgres/postgres`) does not match the running Docker Compose DB (`quizme/quizme`). Align `.env` with `.env.example` before live generation.
+
+### Notes for downstream tasks
+- **TASK-8**: API contract unchanged; handlers are stable for frontend work.
+- **TASK-9**: Backlog item — add explicit `http.Server` `ReadHeaderTimeout`/`WriteTimeout`.
+- **TASK-10**: Worst-case `/internal/generate` latency is 3 × 60s AI timeout = ~180s; do not set a shorter Actions job timeout than the default 360s.

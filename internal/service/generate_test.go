@@ -97,6 +97,53 @@ func TestGenerateWithRetryValidationFailTwice(t *testing.T) {
 	}
 }
 
+func TestGenerateWithRetryAIErrorThenSuccess(t *testing.T) {
+	f := &fakeAI{results: []fakeAIResult{
+		{err: &ai.AIError{Message: "transient"}},
+		{qs: makeQuestions([]string{"Frontend"}, 5), tokens: 150},
+	}}
+	svc := &Service{AI: f}
+
+	qs, tokens, err := svc.generateWithRetry(context.Background(), 5, []string{"Frontend"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(qs) != 5 {
+		t.Fatalf("want 5 questions, got %d", len(qs))
+	}
+	if tokens != 150 {
+		t.Fatalf("want tokens 150, got %d", tokens)
+	}
+	if f.callCount() != 2 {
+		t.Fatalf("want 2 AI calls, got %d", f.callCount())
+	}
+}
+
+func TestToQuestionsNormalizesTopicNames(t *testing.T) {
+	topics := []model.Topic{
+		{ID: 1, Name: "Frontend"},
+		{ID: 2, Name: "Backend"},
+	}
+	generated := []ai.GeneratedQuestion{
+		{Topic: "  frontend ", Prompt: "p", Options: []model.Option{{ID: "a", Text: "x"}, {ID: "b", Text: "y"}, {ID: "c", Text: "z"}, {ID: "d", Text: "w"}}, CorrectOption: "b", Explanation: "e"},
+		{Topic: "BACKEND", Prompt: "p", Options: []model.Option{{ID: "a", Text: "x"}, {ID: "b", Text: "y"}, {ID: "c", Text: "z"}, {ID: "d", Text: "w"}}, CorrectOption: "b", Explanation: "e"},
+	}
+
+	qs, err := toQuestions(generated, topics)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(qs) != 2 {
+		t.Fatalf("want 2 questions, got %d", len(qs))
+	}
+	if qs[0].TopicID != 1 {
+		t.Fatalf("want topic id 1 for normalized frontend, got %d", qs[0].TopicID)
+	}
+	if qs[1].TopicID != 2 {
+		t.Fatalf("want topic id 2 for normalized BACKEND, got %d", qs[1].TopicID)
+	}
+}
+
 func TestGenerateIntegrationSuccess(t *testing.T) {
 	r := testDB(t)
 	ctx := context.Background()
@@ -162,6 +209,98 @@ func TestGenerateIntegrationIdempotentRerun(t *testing.T) {
 	}
 	if len(logs) != 1 {
 		t.Fatalf("want 1 log row, got %d", len(logs))
+	}
+}
+
+func TestGenerateIntegrationPendingWithQuestionsFinalizes(t *testing.T) {
+	r := testDB(t)
+	ctx := context.Background()
+
+	// Pre-create a pending batch with questions already inserted.
+	batch, _, err := r.GetOrCreateBatch(ctx, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	if err := r.InsertQuestions(ctx, batch.ID, []model.Question{
+		{
+			TopicID:       1,
+			Prompt:        "Pending question",
+			Options:       []model.Option{{ID: "a", Text: "A"}, {ID: "b", Text: "B"}, {ID: "c", Text: "C"}, {ID: "d", Text: "D"}},
+			CorrectOption: "a",
+			Explanation:   strPtr("pending"),
+			Source:        "ai_generated",
+		},
+	}); err != nil {
+		t.Fatalf("insert pending questions: %v", err)
+	}
+
+	// AI should not be called; the existing questions finalize the batch.
+	f := &fakeAI{}
+	svc := newTestService(r, f)
+
+	if err := svc.Generate(ctx); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if f.callCount() != 0 {
+		t.Fatalf("want 0 AI calls for pending-with-questions, got %d", f.callCount())
+	}
+
+	batch, err = r.GetBatchByDate(ctx, svc.Now().UTC().Truncate(24*time.Hour))
+	if err != nil {
+		t.Fatalf("GetBatchByDate: %v", err)
+	}
+	if batch.Status != "success" {
+		t.Fatalf("want batch status success, got %q", batch.Status)
+	}
+
+	questions, err := r.GetQuestionsByBatch(ctx, batch.ID)
+	if err != nil {
+		t.Fatalf("GetQuestionsByBatch: %v", err)
+	}
+	if len(questions) != 1 {
+		t.Fatalf("want 1 existing question, got %d", len(questions))
+	}
+}
+
+func TestGenerateIntegrationFailedBatchResetsAndRetries(t *testing.T) {
+	r := testDB(t)
+	ctx := context.Background()
+
+	// Pre-create a failed batch from a previous run.
+	batch, _, err := r.GetOrCreateBatch(ctx, time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	if err := r.UpdateBatchStatus(ctx, batch.ID, "failed"); err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+
+	f := &fakeAI{results: []fakeAIResult{
+		{qs: makeQuestions([]string{"Frontend", "Backend", "Infrastructure"}, 5), tokens: 180},
+	}}
+	svc := newTestService(r, f)
+
+	if err := svc.Generate(ctx); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if f.callCount() != 1 {
+		t.Fatalf("want 1 AI call, got %d", f.callCount())
+	}
+
+	batch, err = r.GetBatchByDate(ctx, svc.Now().UTC().Truncate(24*time.Hour))
+	if err != nil {
+		t.Fatalf("GetBatchByDate: %v", err)
+	}
+	if batch.Status != "success" {
+		t.Fatalf("want batch status success, got %q", batch.Status)
+	}
+
+	questions, err := r.GetQuestionsByBatch(ctx, batch.ID)
+	if err != nil {
+		t.Fatalf("GetQuestionsByBatch: %v", err)
+	}
+	if len(questions) != 5 {
+		t.Fatalf("want 5 questions, got %d", len(questions))
 	}
 }
 

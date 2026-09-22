@@ -306,6 +306,36 @@ func TestInternalAuth(t *testing.T) {
 	}
 }
 
+func TestInternalAuthEmptyWantToken(t *testing.T) {
+	router := gin.New()
+	router.Use(InternalAuth(""))
+	router.POST("/internal/generate", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	cases := []struct {
+		name  string
+		token string
+		want  int
+	}{
+		{"unset rejects no header", "", http.StatusUnauthorized},
+		{"unset rejects empty bearer", "Bearer ", http.StatusUnauthorized},
+		{"unset rejects any token", "Bearer secret", http.StatusUnauthorized},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req, _ := http.NewRequest(http.MethodPost, "/internal/generate", nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+			router.ServeHTTP(w, req)
+			if w.Code != tc.want {
+				t.Fatalf("want %d, got %d", tc.want, w.Code)
+			}
+		})
+	}
+}
+
 func TestGenerate(t *testing.T) {
 	router := gin.New()
 	svc := &mockGenerateService{}
