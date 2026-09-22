@@ -8,7 +8,7 @@ Each `TASK-N/TODO.md` contains the actionable checklist for that task.
 |---|------|-----------|-----------|--------|
 | 1 | Project skeleton & Phase 0 setup | — (start) | §6, §11 | done |
 | 2 | Repository layer | TASK-1 | §6 | done |
-| 3 | AI client + validator | TASK-1 | §9, FR-1, FR-2 | todo |
+| 3 | AI client + validator | TASK-1 | §9, FR-1, FR-2 | done |
 | 4 | Service layer (generation + adaptive selection) | TASK-2, TASK-3 | §8, §10, FR-6, FR-8, FR-9 | todo |
 | 5 | Webhook notifier | TASK-4 | §10, FR-10 | todo |
 | 6 | API layer (Gin) | TASK-4, TASK-5 | §7, FR-3, FR-4, FR-7 | todo |

@@ -63,3 +63,33 @@ Implemented repository layer per `plan/TASK-2/TODO.md` and `PLAN.md`.
 
 ### Blockers
 - None.
+
+## 2026-09-22 — TASK-3 done
+
+Implemented AI client + strict fail-closed validator per `plan/TASK-3/PLAN.md` and `REQUIREMENT.md` §9/FR-1/FR-2/NFR-4.
+
+### Changed
+- `internal/config/config.go`: added `AIBaseURL` and `AIModel` env vars (`AI_BASE_URL`, `AI_MODEL`).
+- `.env.example`: added placeholder `AI_BASE_URL` and `AI_MODEL`.
+- `internal/ai/prompt.go`: §9 prompt template as const; `buildPrompt(n, topics)` via `strings.ReplaceAll`.
+- `internal/ai/validate.go`: `GeneratedQuestion` (reuses `model.Option`), `Parse(raw, n)` with markdown-fence stripping, `Validate(qs, n, topics)` fail-closed with aggregated `*ValidationError`.
+- `internal/ai/client.go`: OpenAI-compatible `POST /chat/completions`; `Client.Generate(ctx, n, topics)` pipeline; `*AIError` for transport/non-200/malformed envelope; 60s timeout, `max_tokens=2000`; no API key logging.
+- `internal/ai/*_test.go`: table-driven validator tests, httptest client tests, prompt test, env-guarded `TestRealSmoke`.
+- Deleted `internal/ai/doc.go`.
+- Updated `plan/TASK-3/TODO.md`, `plan/TASK.md`, `plan/OVERVIEW.md`; created `plan/TASK-3/NOTES.md`.
+
+### Verified
+- `gofmt -w .` clean.
+- `go build ./...` green.
+- `go vet ./...` green.
+- `go test ./...` green.
+- `go test ./internal/ai/ -v` passes all 27 sub-tests.
+- Grep confirmed no API key value outside `Authorization: Bearer ...` construction; no `correct_option` HTTP serialization path in `internal/ai`.
+
+### Notes for TASK-4
+- Consume `ai.Client.Generate(ctx, n, topics)` → `([]GeneratedQuestion, tokensUsed, err)`.
+- Use `errors.As(err, &ai.AIError{})` for AI failures (retry ≤2) and `errors.As(err, &ai.ValidationError{})` for validation failures (retry once).
+- `Validate` checks topic membership against requested topic names (case-insensitive) so AI-invented topics fail before DB insert.
+
+### Blockers
+- Real API smoke test skipped: `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL` are not set in `.env`. To unblock, populate `.env` and run `AI_SMOKE_TEST=true go test ./internal/ai/ -run TestRealSmoke -v`, then record `tokens_used` here.
