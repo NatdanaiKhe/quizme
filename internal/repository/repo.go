@@ -38,6 +38,11 @@ func (r *Repo) Close() {
 	r.pool.Close()
 }
 
+// Pool exposes the underlying connection pool for test helpers.
+func (r *Repo) Pool() *pgxpool.Pool {
+	return r.pool
+}
+
 // ListTopics returns every topic.
 func (r *Repo) ListTopics(ctx context.Context) ([]model.Topic, error) {
 	rows, err := r.pool.Query(ctx, `SELECT id, name, weight, created_at FROM topics ORDER BY id`)
@@ -96,6 +101,20 @@ func (r *Repo) GetOrCreateBatch(ctx context.Context, batchDate time.Time) (model
 		return model.QuizBatch{}, false, fmt.Errorf("select batch %s: %w", batchDate.Format(time.DateOnly), err)
 	}
 	return b, false, nil
+}
+
+// GetBatchByDate returns the batch for a date, or pgx.ErrNoRows if absent.
+// Read-only: it never creates a row, so it is safe to call from GET paths.
+func (r *Repo) GetBatchByDate(ctx context.Context, batchDate time.Time) (model.QuizBatch, error) {
+	var b model.QuizBatch
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, batch_date, status, created_at FROM quiz_batches WHERE batch_date = $1`,
+		batchDate,
+	).Scan(&b.ID, &b.BatchDate, &b.Status, &b.CreatedAt)
+	if err != nil {
+		return model.QuizBatch{}, fmt.Errorf("select batch %s: %w", batchDate.Format(time.DateOnly), err)
+	}
+	return b, nil
 }
 
 // UpdateBatchStatus sets a batch's status.

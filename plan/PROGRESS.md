@@ -93,3 +93,29 @@ Implemented AI client + strict fail-closed validator per `plan/TASK-3/PLAN.md` a
 
 ### Blockers
 - Real API smoke test skipped: `AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL` are not set in `.env`. To unblock, populate `.env` and run `AI_SMOKE_TEST=true go test ./internal/ai/ -run TestRealSmoke -v`, then record `tokens_used` here.
+
+## 2026-09-22 — TASK-4 done
+
+Implemented service layer per `plan/TASK-4/TODO.md`, `PLAN.md`, `REQUIREMENT.md` §8/§10, FR-6, FR-8, FR-9, NFR-5.
+
+### Changed
+- Added `internal/repository/repo.go::GetBatchByDate` read-only batch lookup (GAP-1) and `Pool()` test accessor.
+- Created `internal/service/selection.go`: deterministic adaptive selection, unattempted topics ranked weakest, 70/30 split (`n*7/10` = 3 weak for n=5), injected `*rand.Rand`.
+- Created `internal/service/generate.go`: `Service.Generate` with idempotent `GetOrCreateBatch`, typed retry budgets (3 AI-error attempts, 1 validation retry), topic-name→ID mapping, terminal status updates, one `generation_logs` row per run, nil-safe fire-and-forget notifier seam.
+- Created `internal/service/quiz.go`: `GetTodayQuiz` with fallback to latest successful batch and `ErrNoQuiz` sentinel; pending batches never block reads.
+- Added pure tests (`selection_test.go`, retry-loop tests in `generate_test.go`) and DB-gated integration tests (`generate_test.go`, `quiz_test.go`) covering success, idempotency, AI failure, validation retry/failure, fallback, and `ErrNoQuiz`.
+- Deleted placeholder `internal/service/doc.go`.
+- Updated `plan/TASK-4/TODO.md`, `plan/TASK.md`, `plan/OVERVIEW.md`.
+
+### Verified
+- `gofmt -w .` clean.
+- `go build ./...` green.
+- `go vet ./...` green.
+- `go test ./...` green (integration tests skip without `TEST_DATABASE_URL`).
+- Live Postgres integration: `go test -p 1 ./...` with `TEST_DATABASE_URL=postgres://quizme:quizme@localhost:5432/quizme?sslmode=disable` passes all service and repository tests.
+
+### Notes for TASK-5
+- Notifier interface is defined in `internal/service/generate.go`; implement `Notifier.Notify(ctx, GenerateResult)` and inject it into `Service.Notifier`.
+
+### Blockers
+- Rootless Docker port publishing/DNS is flaky in this environment; integration tests were run via `--network container:quizme-db-1`. This is an environment issue, not a code issue.
