@@ -23,7 +23,7 @@ type Question struct {
 	Prompt        string    `json:"prompt" db:"prompt"`
 	Options       []Option  `json:"options" db:"options"`
 	CorrectOption string    `json:"correct_option" db:"correct_option"`
-	Explanation   string    `json:"explanation" db:"explanation"`
+	Explanation   *string   `json:"explanation,omitempty" db:"explanation"`
 	Source        string    `json:"source" db:"source"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
@@ -42,18 +42,18 @@ type UserAnswer struct {
 }
 
 type UserTopicStats struct {
-	TopicID         int       `json:"topic_id" db:"topic_id"`
-	CorrectCount    int       `json:"correct_count" db:"correct_count"`
-	WrongCount      int       `json:"wrong_count" db:"wrong_count"`
-	LastPracticedAt time.Time `json:"last_practiced_at" db:"last_practiced_at"`
-	AccuracyRate    float64   `json:"accuracy_rate" db:"accuracy_rate"`
+	TopicID         int        `json:"topic_id" db:"topic_id"`
+	CorrectCount    int        `json:"correct_count" db:"correct_count"`
+	WrongCount      int        `json:"wrong_count" db:"wrong_count"`
+	LastPracticedAt *time.Time `json:"last_practiced_at,omitempty" db:"last_practiced_at"`
+	AccuracyRate    float64    `json:"accuracy_rate" db:"accuracy_rate"`
 }
 
 type GenerationLog struct {
 	ID           int       `json:"id" db:"id"`
-	BatchID      int       `json:"batch_id" db:"batch_id"`
+	BatchID      *int      `json:"batch_id,omitempty" db:"batch_id"`
 	Status       string    `json:"status" db:"status"`
-	ErrorMessage string    `json:"error_message" db:"error_message"`
-	TokensUsed   int       `json:"tokens_used" db:"tokens_used"`
+	ErrorMessage *string   `json:"error_message,omitempty" db:"error_message"`
+	TokensUsed   *int      `json:"tokens_used,omitempty" db:"tokens_used"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }
