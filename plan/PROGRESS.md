@@ -56,7 +56,7 @@ Implemented repository layer per `plan/TASK-2/TODO.md` and `PLAN.md`.
 - `go test ./...` green (repository tests skip without `TEST_DATABASE_URL`).
 - `TEST_DATABASE_URL=... go test ./internal/repository/ -v` passes all 8 integration tests against local Postgres.
 
-### Notes for TASK-4
+### Notes for TASK-3
 - `GetOrCreateBatch` returns `(model.QuizBatch, bool, error)`; use the bool to decide whether to start generation.
 - Nullable model fields are pointers; service layer should handle `nil` `LastPracticedAt` as unattempted/weakest topic.
 - `SubmitAnswer` is fully atomic; service/handler only needs question ID, selected option, and correctness.
@@ -66,7 +66,7 @@ Implemented repository layer per `plan/TASK-2/TODO.md` and `PLAN.md`.
 
 ## 2026-09-22 — TASK-3 done
 
-Implemented AI client + strict fail-closed validator per `plan/TASK-3/PLAN.md` and `REQUIREMENT.md` §9/FR-1/FR-2/NFR-4.
+Implemented AI client + strict fail-closed validator per `plan/TASK-3/PLAN.md`, `REQUIREMENT.md` §9/FR-1/FR-2/NFR-4.
 
 ### Changed
 - `internal/config/config.go`: added `AIBaseURL` and `AIModel` env vars (`AI_BASE_URL`, `AI_MODEL`).
@@ -119,3 +119,43 @@ Implemented service layer per `plan/TASK-4/TODO.md`, `PLAN.md`, `REQUIREMENT.md`
 
 ### Blockers
 - Rootless Docker port publishing/DNS is flaky in this environment; integration tests were run via `--network container:quizme-db-1`. This is an environment issue, not a code issue.
+
+## 2026-09-22 — TASK-5 done
+
+Implemented webhook notifier per `plan/TASK-5/PLAN.md`, `REQUIREMENT.md` §10, FR-10.
+
+### Changed
+- Created `internal/service/notify.go`: stdlib-only `WebhookNotifier` implementing the existing `Notifier` seam.
+  - Exact success/failure JSON payloads (`batch_date`, `status`, `question_count`+`topics` or `error`).
+  - POST JSON with `Content-Type: application/json`.
+  - 5s default timeout; caller-configurable.
+  - `context.WithoutCancel(ctx)` so request-context cancellation does not abort in-flight notifications.
+  - Empty `WEBHOOK_URL` is a no-op.
+  - Errors logged with URL host only (no query-string secrets); error values returned but discarded by the service's fire-and-forget goroutine.
+- Created `internal/service/notify_test.go`: comprehensive `httptest` coverage including success/failure payloads, context detach, timeout, non-2xx, unreachable host, empty URL, default timeout, and `Service` seam integration (DB-gated).
+- Updated `.env.example` to clarify `WEBHOOK_URL` feeds an n8n/LINE relay.
+- Created `plan/TASK-5/NOTES.md` with LINE Messaging API receiver-side setup and verification notes.
+- Marked TASK-5 done in `plan/TASK.md`, `plan/OVERVIEW.md`, and `plan/TASK-5/TODO.md`.
+
+### Verified
+- `gofmt -w .` clean.
+- `go build ./...` green.
+- `go vet ./...` green.
+- `go test ./...` green.
+- `go test ./internal/service/ -run Notif -v` passes all 9 sub-tests (seam integration skips without `TEST_DATABASE_URL`).
+- Confirmed log lines expose only host and status, never `WEBHOOK_URL`, query params, API keys, or question content.
+
+### Notes for TASK-6
+- When wiring `Service` in `cmd/server/main.go`, construct the notifier with:
+  ```go
+  notifier := service.NewWebhookNotifier(cfg.WebhookURL, 5*time.Second)
+  svc := service.New(repo, aiClient, notifier)
+  ```
+- If `cfg.WebhookURL` is empty, the notifier is a no-op and generation works without notifications.
+
+### Blockers
+- Full manual end-to-end verification (live AI + Postgres + webhook receiver) is blocked on external/user-owned prerequisites:
+  - `AI_API_KEY` is not set in `.env`.
+  - `WEBHOOK_URL` is not set in `.env`.
+  - `TEST_DATABASE_URL` is not set, so the DB-backed seam integration test skips.
+- These do not block the implementation; automated httptest coverage exercises the code paths.
