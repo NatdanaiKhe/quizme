@@ -159,3 +159,34 @@ Implemented webhook notifier per `plan/TASK-5/PLAN.md`, `REQUIREMENT.md` §10, F
   - `WEBHOOK_URL` is not set in `.env`.
   - `TEST_DATABASE_URL` is not set, so the DB-backed seam integration test skips.
 - These do not block the implementation; automated httptest coverage exercises the code paths.
+
+## 2026-09-22 — TASK-6 done
+
+Implemented API layer (Gin) per `plan/TASK-6/PLAN.md`, `TODO.md`, `REQUIREMENT.md` §7, FR-3, FR-4, FR-7.
+
+### Changed
+- Added `gin` and `pgerrcode` dependencies.
+- `internal/repository/repo.go`: added `GetQuestion(ctx, id)` for answer submission.
+- `internal/service/generate.go`: extended `Repository` interface with `GetQuestion`, `CreateTopic`, `SubmitAnswer`.
+- `internal/service/quiz.go`: added `Answer(ctx, questionID, option)` (fetches question, compares option, records answer transactionally), `ErrNotFound` sentinel, and thin `ListTopics`/`CreateTopic`/`GetStats` delegators.
+- `internal/service/answer_test.go`: table-driven service tests for correct/wrong/not-found answer paths.
+- `internal/handler/quiz.go`: `GET /quiz/today` with answer-safe `publicQuestion` response struct and topic-name lookup; `POST /quiz/answer` with option validation; `GET /stats`.
+- `internal/handler/topics.go`: `GET /topics`, `POST /topics` (duplicate → 409, empty name → 400).
+- `internal/handler/internal.go`: constant-time bearer token middleware and `POST /internal/generate` handler.
+- `internal/handler/handler_test.go`: comprehensive httptest coverage for all six endpoints plus auth/CORS scenarios.
+- `cmd/server/main.go`: Gin router, stdlib CORS middleware, health endpoint, route registration, service wiring.
+- Updated `plan/TASK-6/TODO.md`, `plan/TASK.md`, `plan/OVERVIEW.md`; created `plan/TASK-6/NOTES.md`.
+
+### Verified
+- `gofmt -w .` clean.
+- `go build ./...` green.
+- `go vet ./...` green.
+- `go test ./...` green (handler + service unit tests).
+- `go test -p 1 ./...` with `TEST_DATABASE_URL` from `.env` green (repository + service integration tests).
+- Manual curl verification of all §7 endpoints: shapes/status codes match spec; `/quiz/today` leaks neither `correct_option` nor `explanation`; `/internal/generate` rejects missing/wrong tokens; `/quiz/answer` updates stats.
+
+### Notes for TASK-7
+- Selection, validator, and generation retry logic already have tests; TASK-7 may add more coverage or tidy existing tests.
+
+### Blockers
+- Full live-AI end-to-end of `/internal/generate` is blocked on `AI_API_KEY` (user-owned). Idempotency/auth paths are verified.

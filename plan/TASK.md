@@ -11,7 +11,7 @@ Each `TASK-N/TODO.md` contains the actionable checklist for that task.
 | 3 | AI client + validator | TASK-1 | §9, FR-1, FR-2 | done |
 | 4 | Service layer (generation + adaptive selection) | TASK-2, TASK-3 | §8, §10, FR-6, FR-8, FR-9 | done |
 | 5 | Webhook notifier | TASK-4 | §10, FR-10 | done |
-| 6 | API layer (Gin) | TASK-4, TASK-5 | §7, FR-3, FR-4, FR-7 | todo |
+| 6 | API layer (Gin) | TASK-4, TASK-5 | §7, FR-3, FR-4, FR-7 | done |
 | 7 | Unit tests | TASK-3, TASK-4 (parallel-friendly) | FR-2, FR-6, FR-8 | todo |
 | 8 | Frontend (React/Vite) | TASK-6 | §7 (API contract) | todo |
 | 9 | Deployment | TASK-1–6, TASK-8 | NFR-1 | todo |

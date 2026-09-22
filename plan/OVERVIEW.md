@@ -7,7 +7,7 @@ Tasks (ordered by dependency):
 - [x] **TASK-3** AI client + validator — prompt template (§9), response parsing, validation per FR-2
 - [x] **TASK-4** Service layer — adaptive topic selection 70/30 (§8), generation flow with retries + fallback + logs (§10)
 - [x] **TASK-5** Webhook notifier — POST summary payload after batch completes (§10, LINE Messaging API)
-- [ ] **TASK-6** API layer — Gin handlers for all endpoints (§7), internal auth token guard
+- [x] **TASK-6** API layer — Gin handlers for all endpoints (§7), internal auth token guard
 - [ ] **TASK-7** Unit tests — topic selection, validator, generation retry logic
 - [ ] **TASK-8** Frontend (React/Vite) — quiz page, answer submission + feedback, stats page, error states
 - [ ] **TASK-9** Deployment — Dockerfiles (multi-stage), docker-compose, reverse proxy + Cloudflare Tunnel, `.env` secrets

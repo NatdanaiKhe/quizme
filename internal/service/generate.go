@@ -38,10 +38,13 @@ type Repository interface {
 	GetOrCreateBatch(ctx context.Context, batchDate time.Time) (model.QuizBatch, bool, error)
 	GetBatchByDate(ctx context.Context, batchDate time.Time) (model.QuizBatch, error)
 	LatestSuccessfulBatch(ctx context.Context) (model.QuizBatch, error)
+	GetQuestion(ctx context.Context, id int) (model.Question, error)
 	GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Question, error)
 	UpdateBatchStatus(ctx context.Context, id int, status string) error
 	ListTopics(ctx context.Context) ([]model.Topic, error)
+	CreateTopic(ctx context.Context, name string, weight int) (model.Topic, error)
 	GetStats(ctx context.Context) ([]model.UserTopicStats, error)
+	SubmitAnswer(ctx context.Context, questionID int, selectedOption string, isCorrect bool) error
 	InsertQuestions(ctx context.Context, batchID int, questions []model.Question) error
 	InsertGenerationLog(ctx context.Context, log model.GenerationLog) (model.GenerationLog, error)
 }

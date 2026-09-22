@@ -170,6 +170,19 @@ func (r *Repo) InsertQuestions(ctx context.Context, batchID int, questions []mod
 	return nil
 }
 
+// GetQuestion returns a single question by id, or pgx.ErrNoRows if absent.
+func (r *Repo) GetQuestion(ctx context.Context, id int) (model.Question, error) {
+	q, err := scanQuestion(r.pool.QueryRow(ctx,
+		`SELECT id, batch_id, topic_id, prompt, options, correct_option, explanation, source, created_at
+		 FROM questions WHERE id = $1`,
+		id,
+	))
+	if err != nil {
+		return model.Question{}, fmt.Errorf("select question %d: %w", id, err)
+	}
+	return q, nil
+}
+
 // GetQuestionsByBatch returns every question for a batch.
 func (r *Repo) GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Question, error) {
 	rows, err := r.pool.Query(ctx,
