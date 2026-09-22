@@ -110,10 +110,9 @@ func TestBatchQuestionRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	topics, _ := r.ListTopics(ctx)
-	if len(topics) == 0 {
-		t.Fatal("no topics")
+	if len(topics) < 2 {
+		t.Fatal("need at least 2 topics")
 	}
-	topic := topics[0]
 
 	date := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
 	batch, _, err := r.GetOrCreateBatch(ctx, date)
@@ -123,12 +122,20 @@ func TestBatchQuestionRoundTrip(t *testing.T) {
 
 	want := []model.Question{
 		{
-			TopicID:       topic.ID,
+			TopicID:       topics[0].ID,
 			Prompt:        "What is 2+2?",
 			Options:       []model.Option{{ID: "a", Text: "3"}, {ID: "b", Text: "4"}},
 			CorrectOption: "b",
 			Explanation:   strPtr("Basic arithmetic."),
 			Source:        "test",
+		},
+		{
+			TopicID:       topics[1].ID,
+			Prompt:        "What is the capital of France?",
+			Options:       []model.Option{{ID: "a", Text: "Berlin"}, {ID: "b", Text: "Paris"}, {ID: "c", Text: "Madrid"}},
+			CorrectOption: "b",
+			Explanation:   nil,
+			Source:        "manual",
 		},
 	}
 
@@ -143,20 +150,43 @@ func TestBatchQuestionRoundTrip(t *testing.T) {
 	if len(got) != len(want) {
 		t.Fatalf("want %d questions, got %d", len(want), len(got))
 	}
-	if got[0].Prompt != want[0].Prompt {
-		t.Fatalf("prompt mismatch: got %q", got[0].Prompt)
+
+	byPrompt := make(map[string]model.Question)
+	for _, q := range got {
+		byPrompt[q.Prompt] = q
 	}
-	if len(got[0].Options) != len(want[0].Options) {
-		t.Fatalf("options count mismatch: got %d", len(got[0].Options))
-	}
-	if got[0].Options[1].Text != "4" {
-		t.Fatalf("option text mismatch: %+v", got[0].Options)
-	}
-	if got[0].CorrectOption != "b" {
-		t.Fatalf("correct_option lost: got %q", got[0].CorrectOption)
-	}
-	if got[0].Explanation == nil || *got[0].Explanation != "Basic arithmetic." {
-		t.Fatalf("explanation mismatch: got %v", got[0].Explanation)
+
+	for _, w := range want {
+		g, ok := byPrompt[w.Prompt]
+		if !ok {
+			t.Fatalf("missing question: %q", w.Prompt)
+		}
+		if g.BatchID != batch.ID {
+			t.Fatalf("batch_id mismatch for %q: got %d, want %d", w.Prompt, g.BatchID, batch.ID)
+		}
+		if g.TopicID != w.TopicID {
+			t.Fatalf("topic_id mismatch for %q: got %d, want %d", w.Prompt, g.TopicID, w.TopicID)
+		}
+		if g.CorrectOption != w.CorrectOption {
+			t.Fatalf("correct_option mismatch for %q: got %q", w.Prompt, g.CorrectOption)
+		}
+		if g.Source != w.Source {
+			t.Fatalf("source mismatch for %q: got %q, want %q", w.Prompt, g.Source, w.Source)
+		}
+		if len(g.Options) != len(w.Options) {
+			t.Fatalf("options count mismatch for %q: got %d", w.Prompt, len(g.Options))
+		}
+		for i, opt := range w.Options {
+			if g.Options[i].ID != opt.ID || g.Options[i].Text != opt.Text {
+				t.Fatalf("option mismatch for %q at %d: got %+v, want %+v", w.Prompt, i, g.Options[i], opt)
+			}
+		}
+		if (g.Explanation == nil) != (w.Explanation == nil) {
+			t.Fatalf("explanation nil mismatch for %q: got %v", w.Prompt, g.Explanation)
+		}
+		if g.Explanation != nil && w.Explanation != nil && *g.Explanation != *w.Explanation {
+			t.Fatalf("explanation mismatch for %q: got %q", w.Prompt, *g.Explanation)
+		}
 	}
 }
 

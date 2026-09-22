@@ -128,19 +128,21 @@ func (r *Repo) InsertQuestions(ctx context.Context, batchID int, questions []mod
 		return nil
 	}
 
-	valuesSQL := "($1, $2, $3, $4, $5, $6, $7)"
 	sql := `INSERT INTO questions (batch_id, topic_id, prompt, options, correct_option, explanation, source) VALUES `
-	args := []any{batchID}
+	args := make([]any, 0, len(questions)*7)
+	placeholder := 1
 	for i, q := range questions {
 		if i > 0 {
 			sql += ", "
 		}
-		sql += valuesSQL
+		sql += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			placeholder, placeholder+1, placeholder+2, placeholder+3, placeholder+4, placeholder+5, placeholder+6)
 		optionsJSON, err := json.Marshal(q.Options)
 		if err != nil {
 			return fmt.Errorf("marshal options for question %d: %w", i, err)
 		}
-		args = append(args, q.TopicID, q.Prompt, optionsJSON, q.CorrectOption, q.Explanation, q.Source)
+		args = append(args, batchID, q.TopicID, q.Prompt, optionsJSON, q.CorrectOption, q.Explanation, q.Source)
+		placeholder += 7
 	}
 
 	if _, err := r.pool.Exec(ctx, sql, args...); err != nil {
