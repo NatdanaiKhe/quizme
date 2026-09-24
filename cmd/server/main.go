@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/natdanai/quizme/docs"
 	"github.com/natdanai/quizme/frontend"
 	"github.com/natdanai/quizme/internal/ai"
 	"github.com/natdanai/quizme/internal/config"
@@ -48,6 +49,12 @@ func setupRouter(cfg config.Config, svc *service.Service) *gin.Engine {
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+	r.GET("/openapi.yaml", func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/yaml", docs.OpenAPIYAML)
+	})
+	r.GET("/docs", func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", docs.SwaggerHTML)
 	})
 
 	r.GET("/quiz/today", handler.GetTodayQuiz(svc))

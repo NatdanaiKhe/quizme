@@ -146,8 +146,13 @@ Some integration tests require `TEST_DATABASE_URL` and will skip otherwise. **WA
 
 ## API Endpoints
 
+Interactive Swagger UI is available at [`/docs`](http://localhost:8080/docs), and the raw OpenAPI 3.0 specification is served at [`/openapi.yaml`](http://localhost:8080/openapi.yaml).
+
 | Method | Path | Description |
 |---|---|---|
+| GET | `/docs` | Interactive Swagger UI API documentation |
+| GET | `/openapi.yaml` | OpenAPI 3.0 YAML specification |
+| GET | `/health` | Health check endpoint |
 | GET | `/quiz/today` | Fetch today's 5 questions |
 | POST | `/quiz/answer` | Submit an answer, get correct/incorrect + explanation |
 | GET | `/stats` | Per-topic accuracy stats |

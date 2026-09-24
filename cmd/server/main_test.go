@@ -32,6 +32,20 @@ func TestMonolithRouter(t *testing.T) {
 			wantContains: `{"status":"ok"}`,
 		},
 		{
+			name:         "OpenAPI specification endpoint",
+			method:       http.MethodGet,
+			path:         "/openapi.yaml",
+			wantStatus:   http.StatusOK,
+			wantContains: "openapi: 3.0.3",
+		},
+		{
+			name:         "Interactive Swagger UI docs endpoint",
+			method:       http.MethodGet,
+			path:         "/docs",
+			wantStatus:   http.StatusOK,
+			wantContains: "<div id=\"swagger-ui\"></div>",
+		},
+		{
 			name:         "Root serves embedded index.html",
 			method:       http.MethodGet,
 			path:         "/",

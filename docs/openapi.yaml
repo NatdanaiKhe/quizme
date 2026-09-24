@@ -1,0 +1,364 @@
+openapi: 3.0.3
+info:
+  title: Quizme API
+  description: Single-user MVP API for daily AI-generated quiz questions, adaptive topic selection, and stats tracking.
+  version: 1.0.0
+servers:
+  - url: /
+    description: Current Server (Same Origin)
+  - url: http://localhost:8080
+    description: Local Development Server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns server operational status.
+      responses:
+        '200':
+          description: Server is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                required:
+                  - status
+
+  /quiz/today:
+    get:
+      summary: Get today's quiz
+      description: Returns today's active question batch (5 questions). Does not expose correct options or explanations to prevent cheating.
+      responses:
+        '200':
+          description: Active quiz batch and questions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodayQuizResponse'
+        '404':
+          description: No quiz available today (and no fallback batch)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: no quiz available
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /quiz/answer:
+    post:
+      summary: Submit question answer
+      description: Submits user selected option for a question. Immediately returns correctness feedback and explanation, updating topic statistics transactionally.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnswerRequest'
+      responses:
+        '200':
+          description: Answer evaluation feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnswerResponse'
+        '400':
+          description: Invalid request body or option outside [a, b, c, d]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_body:
+                  value:
+                    error: invalid request body
+                invalid_option:
+                  value:
+                    error: option must be a, b, c, or d
+        '404':
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: question not found
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /stats:
+    get:
+      summary: Get topic practice statistics
+      description: Returns performance metrics (accuracy rate, correct count, wrong count, last practiced date) per topic.
+      responses:
+        '200':
+          description: List of topic statistics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopicStats'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /topics:
+    get:
+      summary: List all topics
+      description: Returns all available quiz topics.
+      responses:
+        '200':
+          description: List of topics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Topic'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a new topic
+      description: Adds a new quiz topic to the catalog.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTopicRequest'
+      responses:
+        '201':
+          description: Topic created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+        '400':
+          description: Empty name or invalid body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: name is required
+        '409':
+          description: Topic already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: topic already exists
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /internal/generate:
+    post:
+      summary: Trigger daily quiz generation
+      description: Idempotently generates today's quiz batch via AI API and adaptive topic selection. Protected by bearer token.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Generation completed or batch already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: batch generated
+        '401':
+          description: Missing or invalid authorization token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: unauthorized
+        '500':
+          description: Generation failure after retry exhaustion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Internal secret token configured via INTERNAL_TOKEN environment variable.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Option:
+      type: object
+      properties:
+        id:
+          type: string
+          enum: [a, b, c, d]
+          example: a
+        text:
+          type: string
+          example: B-tree indexes are balanced search trees.
+      required:
+        - id
+        - text
+
+    PublicQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 101
+        topic:
+          type: string
+          example: Database Indexing
+        prompt:
+          type: string
+          example: What is the primary characteristic of a B-tree index in PostgreSQL?
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/Option'
+      required:
+        - id
+        - topic
+        - prompt
+        - options
+
+    TodayQuizResponse:
+      type: object
+      properties:
+        batch_date:
+          type: string
+          format: date
+          example: '2026-09-24'
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicQuestion'
+      required:
+        - batch_date
+        - questions
+
+    AnswerRequest:
+      type: object
+      properties:
+        question_id:
+          type: integer
+          example: 101
+        option:
+          type: string
+          enum: [a, b, c, d]
+          example: b
+      required:
+        - question_id
+        - option
+
+    AnswerResponse:
+      type: object
+      properties:
+        correct:
+          type: boolean
+          example: true
+        explanation:
+          type: string
+          example: B-tree maintains sorted data with logarithmic search complexity.
+      required:
+        - correct
+
+    Topic:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Frontend
+        weight:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-09-22T17:35:21Z'
+      required:
+        - id
+        - name
+        - weight
+        - created_at
+
+    CreateTopicRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Security
+      required:
+        - name
+
+    TopicStats:
+      type: object
+      properties:
+        topic_id:
+          type: integer
+          example: 1
+        correct_count:
+          type: integer
+          example: 12
+        wrong_count:
+          type: integer
+          example: 4
+        last_practiced_at:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-09-24T10:15:30Z'
+        accuracy_rate:
+          type: number
+          format: float
+          example: 75.0
+      required:
+        - topic_id
+        - correct_count
+        - wrong_count
+        - accuracy_rate
