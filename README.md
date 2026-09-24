@@ -91,15 +91,31 @@ CORS_ORIGIN=http://localhost:5173
 
 ### Run locally
 
-```bash
-# Copy example env and fill secrets (optional for TASK-1)
-cp .env.example .env
+Using the `Makefile`:
 
+```bash
+# Run both backend (:8080) and frontend (:5173 with HMR) concurrently
+make dev
+
+# Build the complete single-binary monolith (Go server embedding frontend SPA)
+make build
+./bin/quizme
+
+# Run backend tests and frontend checks
+make test
+
+# Run linters (Go vet/gofmt + oxlint)
+make lint
+
+# Build monolith Docker image
+make docker-build
+```
+
+Using Docker Compose directly:
+
+```bash
 # Start Postgres + run migrations + backend
 docker compose up -d
-
-# Or run the backend directly (Postgres must be reachable)
-go run ./cmd/server
 
 # Health check
 curl http://localhost:8080/health

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/natdanai/quizme/frontend"
 	"github.com/natdanai/quizme/internal/ai"
 	"github.com/natdanai/quizme/internal/config"
 	"github.com/natdanai/quizme/internal/handler"
@@ -30,6 +31,16 @@ func main() {
 	notifier := service.NewWebhookNotifier(cfg.WebhookURL, 5*time.Second)
 	svc := service.New(repo, aiClient, notifier)
 
+	r := setupRouter(cfg, svc)
+
+	addr := ":" + cfg.Port
+	log.Printf("quizme server listening on %s", addr)
+	if err := r.Run(addr); err != nil {
+		log.Fatalf("server error: %v", err)
+	}
+}
+
+func setupRouter(cfg config.Config, svc *service.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -48,11 +59,35 @@ func main() {
 	internal := r.Group("/internal", handler.InternalAuth(cfg.InternalToken))
 	internal.POST("/generate", handler.Generate(svc))
 
-	addr := ":" + cfg.Port
-	log.Printf("quizme server listening on %s", addr)
-	if err := r.Run(addr); err != nil {
-		log.Fatalf("server error: %v", err)
-	}
+	distFS := frontend.FS()
+	fileServer := http.FileServer(http.FS(distFS))
+	r.NoRoute(func(c *gin.Context) {
+		reqPath := strings.TrimPrefix(c.Request.URL.Path, "/")
+		if reqPath == "" {
+			reqPath = "index.html"
+		}
+
+		if f, err := distFS.Open(reqPath); err == nil {
+			f.Close()
+			fileServer.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+
+		if c.Request.Method == http.MethodGet {
+			if idx, err := distFS.Open("index.html"); err == nil {
+				idx.Close()
+				c.Request.URL.Path = "/"
+				fileServer.ServeHTTP(c.Writer, c.Request)
+				return
+			}
+			c.String(http.StatusOK, "Frontend assets not built. Run 'make build-frontend' or 'npm run build' in frontend/.")
+			return
+		}
+
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+	})
+
+	return r
 }
 
 func corsMiddleware(allowed string) gin.HandlerFunc {

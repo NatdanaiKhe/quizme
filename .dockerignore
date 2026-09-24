@@ -1,0 +1,9 @@
+.git
+.github
+.env
+.playwright-mcp
+frontend/node_modules
+frontend/dist
+docker-data
+bin
+*.log
