@@ -1,0 +1,29 @@
+name: Daily Quiz Generation
+
+on:
+  schedule:
+    # 23:00 UTC = 06:00 ICT (Thailand) daily
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    name: Trigger Daily Quiz Generation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Generation Endpoint
+        run: |
+          if [ -z "${{ secrets.QUIZ_URL }}" ] || [ -z "${{ secrets.INTERNAL_TOKEN }}" ]; then
+            echo "::error::Required secrets QUIZ_URL or INTERNAL_TOKEN are not configured in GitHub repository secrets."
+            exit 1
+          fi
+
+          echo "Triggering daily generation at ${{ secrets.QUIZ_URL }}/internal/generate..."
+          curl -f -sS -X POST "${{ secrets.QUIZ_URL }}/internal/generate" \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --max-time 300 \
+            --retry 2 \
+            --retry-delay 5
