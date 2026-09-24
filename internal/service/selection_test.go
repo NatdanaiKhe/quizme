@@ -232,4 +232,59 @@ func TestSelectionSingleTopicDegradation(t *testing.T) {
 	}
 }
 
+func TestMultiDayAdaptiveProgression(t *testing.T) {
+	topics := []model.Topic{
+		{ID: 1, Name: "Frontend"},
+		{ID: 2, Name: "Backend"},
+		{ID: 3, Name: "Infrastructure"},
+		{ID: 4, Name: "Security"},
+	}
+
+	// Day 1: Brand new user, all unattempted.
+	var stats []model.UserTopicStats
+	rnd := rand.New(rand.NewSource(100))
+
+	day1 := SelectTopics(5, topics, stats, rnd)
+	if len(day1) != 5 {
+		t.Fatalf("day 1: want 5 questions, got %d", len(day1))
+	}
+
+	// User answers Day 1: perfect on Frontend, fails Security and Backend.
+	now := time.Now()
+	stats = []model.UserTopicStats{
+		{TopicID: 1, CorrectCount: 3, WrongCount: 0, AccuracyRate: 100, LastPracticedAt: &now},
+		{TopicID: 2, CorrectCount: 0, WrongCount: 2, AccuracyRate: 0, LastPracticedAt: &now},
+		{TopicID: 4, CorrectCount: 0, WrongCount: 2, AccuracyRate: 0, LastPracticedAt: &now},
+	}
+
+	// Day 2: Security & Backend (0%) and Infrastructure (unattempted) are bottom topics.
+	// Frontend (100%) must NOT be in the bottom/weak 70% pool.
+	day2 := SelectTopics(5, topics, stats, rnd)
+	for i := 0; i < 3; i++ {
+		if day2[i] == "Frontend" {
+			t.Fatalf("day 2 weak slot %d selected strong topic Frontend", i)
+		}
+	}
+
+	// Over 5 simulated days, the weak group (Security, Backend, Infrastructure) must
+	// surface more frequently (~70/30 split) than the strong group (Frontend).
+	weakGroupCount := 0
+	strongGroupCount := 0
+	for day := 1; day <= 5; day++ {
+		selected := SelectTopics(5, topics, stats, rnd)
+		for _, name := range selected {
+			if name == "Frontend" {
+				strongGroupCount++
+			} else {
+				weakGroupCount++
+			}
+		}
+	}
+
+	if weakGroupCount <= strongGroupCount {
+		t.Fatalf("expected weak topic group to surface more frequently than strong topic over 5 days: weak=%d, strong=%d",
+			weakGroupCount, strongGroupCount)
+	}
+}
+
 func ptrTime(v time.Time) *time.Time { return &v }

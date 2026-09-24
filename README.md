@@ -167,6 +167,25 @@ on:
   workflow_dispatch: {}
 ```
 
+## Operational Runbook
+
+- **Token Rotation**: To rotate `INTERNAL_TOKEN`:
+  1. Generate a new secret (`openssl rand -hex 24`).
+  2. Update `INTERNAL_TOKEN` in `.env` and restart the backend service.
+  3. Update `INTERNAL_TOKEN` in GitHub repository secrets (**Settings → Secrets and variables → Actions**).
+- **Manual Migration**: To apply migrations outside Docker Compose:
+  ```bash
+  migrate -path migrations -database "$DATABASE_URL" up
+  ```
+- **Fallback Behavior**: If AI generation fails on a given day (e.g. API outage), `/quiz/today` automatically falls back to the most recent successful batch so the user always has a quiz. Review `generation_logs` table in Postgres for failure causes.
+
+## Backlog (Post-MVP)
+
+- **Multi-User Architecture**: Add `user_id` column to `user_answers` and `user_topic_stats` (repository queries are already isolated in anticipation) alongside OAuth/auth middleware.
+- **Dynamic Difficulty Tuning**: Pass user proficiency level into AI prompt template to dynamically generate harder or easier questions.
+- **Historical Archive**: Allow users to browse and review past completed batches and explanations.
+- **Rich Analytics**: Visual graphs of accuracy progression over time.
+
 ## Roadmap
 
 - [ ] Multi-user support with authentication
