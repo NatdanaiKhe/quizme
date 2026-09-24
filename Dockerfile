@@ -17,9 +17,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/quizme ./cmd/
 
 # Stage 3: Minimal Runtime Container
 FROM alpine:3.21
-RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
+COPY --from=backend-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=backend-builder /app/bin/quizme /app/quizme
 
 EXPOSE 8080
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
+
 ENTRYPOINT ["/app/quizme"]

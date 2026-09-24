@@ -59,7 +59,7 @@ lint: lint-backend lint-frontend ## Run all linters (Go and frontend)
 
 docker-build: ## Build monolith Docker image
 	@echo "==> Building Docker image $(DOCKER_IMAGE)..."
-	docker build -t $(DOCKER_IMAGE) .
+	docker build --network=host --load -t $(DOCKER_IMAGE) .
 
 clean: ## Remove build artifacts
 	@echo "==> Cleaning artifacts..."
