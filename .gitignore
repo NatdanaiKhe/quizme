@@ -27,3 +27,6 @@ frontend/dist/
 
 # Docker volumes
 docker-data/
+
+# Misc
+plan/
