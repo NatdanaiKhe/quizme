@@ -225,3 +225,34 @@ Implemented TASK-7 backend hardening and test coverage per `plan/TASK-7/PLAN.md`
 - **TASK-8**: API contract unchanged; handlers are stable for frontend work.
 - **TASK-9**: Backlog item — add explicit `http.Server` `ReadHeaderTimeout`/`WriteTimeout`.
 - **TASK-10**: Worst-case `/internal/generate` latency is 3 × 60s AI timeout = ~180s; do not set a shorter Actions job timeout than the default 360s.
+
+## 2026-09-24 — TASK-8 done
+
+Implemented and verified React + Vite frontend per `plan/TASK-8/TODO.md`, `PLAN.md`, and `REQUIREMENT.md` §7.
+
+### Changed
+- Scaffolded React 19 + Vite 8 SPA in `frontend/` with lightweight hash routing (`#/quiz`, `#/stats`, `#/topics`).
+- `frontend/src/api.js`: thin REST client consuming `VITE_API_BASE` (default `http://localhost:8080`) covering all §7 endpoints with error mapping.
+- `frontend/src/App.jsx` + `App.css`:
+  - **Quiz view**: fetches `GET /quiz/today`, presents questions with choices (a–d), submits answers to `POST /quiz/answer`, immediately shows correct/wrong feedback + explanation without answer leakage, and tracks completion.
+  - **Stats view**: fetches `/stats` and `/topics`, client-joins topic names, and displays summary counts and CSS accuracy bars.
+  - **Topics view**: displays all topics with weight badges, adds new topics via `POST /topics` with inline validation and 409 conflict detection.
+  - **Error & Loading states**: shared components for loading indicators, empty states, and network/HTTP errors with retry button.
+- `frontend/.gitignore` & `.gitignore`: excludes `node_modules/` and `dist/`.
+- `frontend/.env.example` & updated `frontend/README.md`.
+- Updated `plan/TASK-8/TODO.md`, `plan/TASK-8/NOTES.md`, `plan/TASK.md`, and `plan/OVERVIEW.md`.
+
+### Verified
+- `npm run lint` in `frontend/`: 0 warnings, 0 errors.
+- `npm run build` in `frontend/`: builds clean in <400ms (`dist/` generated).
+- `go test ./...`: green across all Go packages.
+- Live backend verification:
+  - CORS preflight and headers verified against `http://localhost:5173`.
+  - Quiz flow: `GET /quiz/today` → renders question & options → `POST /quiz/answer` → returns correctness + explanation → completion screen links to stats.
+  - Stats view: displays total answered, correct, wrong, and per-topic accuracy bars and last practiced date.
+  - Topics view: lists topics, adds new topic, and displays inline error on 409 conflict or empty input.
+  - Network error: graceful error banner with Retry button when backend is unreachable.
+
+### Notes for TASK-9
+- Frontend build produces static assets in `frontend/dist`.
+- In TASK-9, Dockerfile for frontend can build via `node:alpine` and serve via `nginx:alpine` or Caddy reverse proxy together with the Go backend container.

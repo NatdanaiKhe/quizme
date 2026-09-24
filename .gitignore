@@ -1,6 +1,9 @@
 # Local env
 .env
 
+# Test
+.playwright-mcp/
+
 # Binaries
 quizme
 *.exe
