@@ -1,145 +1,45 @@
-name: Build & Deploy (Homelab)
-
-# Homelab deployment pipeline (Traefik + GHCR + Tailscale).
-#
-#   push (tags v*) / PR -> lint + test + build
-#   push tags           -> build + push images to GHCR (sha + git-tag)
-#                       -> deploy to homelab over Tailscale SSH
+name: Debug Deploy (Homelab)
 
 on:
+  workflow_dispatch:
   push:
     tags: ["v*"]
-  pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  lint-test:
-    name: Lint, test & build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: cd frontend && npm ci
-
-      - name: Frontend lint
-        run: cd frontend && npm run lint
-
-      - name: Frontend build
-        run: cd frontend && npm run build
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
-
-      - name: Go vet
-        run: go vet ./...
-
-      - name: Go test
-        run: go test -v ./...
-
-  build-push:
-    name: Build & push to GHCR
-    needs: lint-test
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Lowercase image name (GHCR requires lowercase)
-        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker metadata (app)
-        id: meta-app
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha
-            type=ref,event=tag
-
-      - name: Docker metadata (migrator)
-        id: meta-migrator
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-migrator
-          tags: |
-            type=sha
-            type=ref,event=tag
-
-      - name: Build and push migrator
-        id: build-migrator
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: migrator
-          push: true
-          tags: ${{ steps.meta-migrator.outputs.tags }}
-          labels: ${{ steps.meta-migrator.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push app
-        id: build-app
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: app
-          push: true
-          tags: ${{ steps.meta-app.outputs.tags }}
-          labels: ${{ steps.meta-app.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Record image digests
-        run: |
-          echo "App image:       ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          echo "App digest:      ${{ steps.build-app.outputs.digest }}"
-          echo "Migrator image:  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-migrator"
-          echo "Migrator digest: ${{ steps.build-migrator.outputs.digest }}"
-
-  deploy:
-    name: Deploy to homelab
-    needs: build-push
-    if: startsWith(github.ref, 'refs/tags/')
+  debug-deploy:
+    name: Test Tailscale & SSH Connection
     runs-on: ubuntu-latest
     environment: PROD
-    env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
-      IMAGE_TAG: ${{ github.ref_name }}
-      COMPOSE_DIR: ${{ vars.HOMELAB_COMPOSE_DIR || '/opt/quizme' }}
-      HOMELAB_HOST: ${{ vars.HOMELAB_HOST }}
-      HOMELAB_USER: ${{ vars.HOMELAB_USER }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inspect Secrets and Variables
+        run: |
+          echo "=== Checking Secrets & Variables presence ==="
+          if [ -n "${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}" ]; then
+            echo "TAILSCALE_OAUTH_CLIENT_ID: [OK - SET]"
+          else
+            echo "::error::TAILSCALE_OAUTH_CLIENT_ID is EMPTY or NOT FOUND in environment 'PROD' or Repository Secrets!"
+          fi
+
+          if [ -n "${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}" ]; then
+            echo "TAILSCALE_OAUTH_CLIENT_SECRET: [OK - SET]"
+          else
+            echo "::error::TAILSCALE_OAUTH_CLIENT_SECRET is EMPTY or NOT FOUND in environment 'PROD' or Repository Secrets!"
+          fi
+
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "SSH_PRIVATE_KEY: [OK - SET]"
+          else
+            echo "::warning::SSH_PRIVATE_KEY is EMPTY or NOT FOUND!"
+          fi
+
+          echo "HOMELAB_HOST variable: '${{ vars.HOMELAB_HOST }}'"
+          echo "HOMELAB_USER variable: '${{ vars.HOMELAB_USER }}'"
+          echo "HOMELAB_COMPOSE_DIR variable: '${{ vars.HOMELAB_COMPOSE_DIR }}'"
 
       - name: Connect to Tailscale
         uses: tailscale/github-action@v4
@@ -149,14 +49,13 @@ jobs:
           tags: tag:ci
           ping: ${{ vars.HOMELAB_HOST }}
 
-      - name: Deploy over Tailscale SSH
+      - name: Test SSH to Homelab
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOMELAB_HOST: ${{ vars.HOMELAB_HOST }}
+          HOMELAB_USER: ${{ vars.HOMELAB_USER }}
         run: |
           set -euo pipefail
-          IMAGE_NAME="${IMAGE_NAME,,}"
-          APP_IMAGE="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-          MIGRATOR_IMAGE="${REGISTRY}/${IMAGE_NAME}-migrator:${IMAGE_TAG}"
           SSH_TARGET="${HOMELAB_USER:+${HOMELAB_USER}@}${HOMELAB_HOST}"
           SSH_ARGS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
           if [ -n "${SSH_PRIVATE_KEY:-}" ]; then
@@ -166,30 +65,5 @@ jobs:
             SSH_ARGS+=(-i ~/.ssh/deploy_key)
           fi
 
-          ssh "${SSH_ARGS[@]}" "$SSH_TARGET" bash -s <<REMOTE
-          set -euo pipefail
-          cd "$COMPOSE_DIR"
-
-          if grep -q '^GHCR_IMAGE=' .env; then
-            grep '^GHCR_IMAGE=' .env | cut -d= -f2- | sed 's|.*:||' > .prev-tag
-          fi
-
-          if grep -q '^GHCR_IMAGE=' .env; then
-            sed -i "s|^GHCR_IMAGE=.*|GHCR_IMAGE=$APP_IMAGE|" .env
-          else
-            printf 'GHCR_IMAGE=%s\n' "$APP_IMAGE" >> .env
-          fi
-
-          if grep -q '^GHCR_MIGRATOR_IMAGE=' .env; then
-            sed -i "s|^GHCR_MIGRATOR_IMAGE=.*|GHCR_MIGRATOR_IMAGE=$MIGRATOR_IMAGE|" .env
-          else
-            printf 'GHCR_MIGRATOR_IMAGE=%s\n' "$MIGRATOR_IMAGE" >> .env
-          fi
-
-          docker compose -f docker-compose.prod.yml pull app migrate
-          docker compose -f docker-compose.prod.yml run --rm migrate
-          docker compose -f docker-compose.prod.yml up -d --no-deps --wait --wait-timeout 120 app
-          docker compose -f docker-compose.prod.yml exec -T app wget -qO- http://localhost:8080/health | grep -q '"status":"ok"'
-          docker compose -f docker-compose.prod.yml ps
-          echo "deployed $APP_IMAGE"
-          REMOTE
+          echo "Attempting SSH connection to $SSH_TARGET..."
+          ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "echo 'SSH connection successful! Host: \$(hostname), User: \$(whoami)'"
