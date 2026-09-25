@@ -24,9 +24,6 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
       - "traefik.http.routers.quizme.rule=Host(`${DOMAIN}`)"
-      - "traefik.http.routers.quizme.entrypoints=websecure"
-      - "traefik.http.routers.quizme.tls=true"
-      - "traefik.http.routers.quizme.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
       - "traefik.http.services.quizme.loadbalancer.server.port=8080"
 
 networks:
