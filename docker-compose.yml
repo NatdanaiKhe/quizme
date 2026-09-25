@@ -1,45 +1,11 @@
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: quizme
-      POSTGRES_PASSWORD: quizme
-      POSTGRES_DB: quizme
-    volumes:
-      - quizme_pg_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U quizme -d quizme"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  migrate:
-    image: migrate/migrate:v4.18.3
-    volumes:
-      - ./migrations:/migrations
-    command: ["-path", "/migrations", "-database", "postgres://quizme:quizme@db:5432/quizme?sslmode=disable", "up"]
-    depends_on:
-      db:
-        condition: service_healthy
-
   backend:
     image: golang:1.26-alpine
     working_dir: /app
     volumes:
-      - .:/app
+      - .:/app:Z
     ports:
       - "8080:8080"
-    environment:
-      PORT: 8080
-      DATABASE_URL: postgres://quizme:quizme@db:5432/quizme?sslmode=disable
     env_file:
       - .env
     command: ["go", "run", "cmd/server/main.go"]
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-
-volumes:
-  quizme_pg_data:
