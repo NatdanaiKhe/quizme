@@ -29,19 +29,6 @@ services:
       - "traefik.http.routers.quizme.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
       - "traefik.http.services.quizme.loadbalancer.server.port=8080"
 
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - app
-    profiles:
-      - tunnel
-    networks:
-      - proxy
-
 networks:
   proxy:
     external: true

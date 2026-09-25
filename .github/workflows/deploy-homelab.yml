@@ -21,18 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
-
-      - name: Go vet
-        run: go vet ./...
-
-      - name: Go test
-        run: go test -v ./...
-
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -48,6 +36,18 @@ jobs:
 
       - name: Frontend build
         run: cd frontend && npm run build
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go test
+        run: go test -v ./...
 
   build-push:
     name: Build & push to GHCR
