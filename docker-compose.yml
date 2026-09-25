@@ -2,10 +2,30 @@ services:
   backend:
     image: golang:1.26-alpine
     working_dir: /app
+    network_mode: host
     volumes:
-      - .:/app:Z
-    ports:
-      - "8080:8080"
+      - .:/app:z
+      - go_pkg_mod:/go/pkg/mod
     env_file:
       - .env
     command: ["go", "run", "cmd/server/main.go"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    environment:
+      - VITE_PROXY_TARGET=http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./frontend:/app:z
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+volumes:
+  frontend_node_modules:
+  go_pkg_mod:
