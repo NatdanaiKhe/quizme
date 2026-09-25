@@ -1,3 +1,8 @@
+# Stage: Migrations Container
+FROM migrate/migrate:v4.18.3 AS migrator
+COPY migrations /migrations
+ENTRYPOINT ["migrate"]
+
 # Stage 1: Build Frontend SPA
 FROM node:22-alpine AS frontend-builder
 WORKDIR /app/frontend
@@ -16,7 +21,7 @@ COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/quizme ./cmd/server/main.go
 
 # Stage 3: Minimal Runtime Container
-FROM alpine:3.21
+FROM alpine:3.21 AS app
 WORKDIR /app
 COPY --from=backend-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=backend-builder /app/bin/quizme /app/quizme
