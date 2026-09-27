@@ -10,6 +10,7 @@ jobs:
   generate:
     name: Trigger Daily Quiz Generation
     runs-on: ubuntu-latest
+    environment: PROD
     timeout-minutes: 10
 
     steps:
