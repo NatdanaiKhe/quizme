@@ -41,6 +41,13 @@ type UserAnswer struct {
 	AnsweredAt     time.Time `json:"answered_at" db:"answered_at"`
 }
 
+type QuestionWithAnswer struct {
+	Question
+	SelectedOption *string    `json:"selected_option,omitempty"`
+	IsCorrect      *bool      `json:"is_correct,omitempty"`
+	AnsweredAt     *time.Time `json:"answered_at,omitempty"`
+}
+
 type UserTopicStats struct {
 	TopicID         int        `json:"topic_id" db:"topic_id"`
 	CorrectCount    int        `json:"correct_count" db:"correct_count"`

@@ -41,6 +41,8 @@ type Repository interface {
 	LatestSuccessfulBatch(ctx context.Context) (model.QuizBatch, error)
 	GetQuestion(ctx context.Context, id int) (model.Question, error)
 	GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Question, error)
+	GetQuestionsWithAnswers(ctx context.Context, batchID int) ([]model.QuestionWithAnswer, error)
+	HasUserAnswered(ctx context.Context, questionID int) (bool, error)
 	UpdateBatchStatus(ctx context.Context, id int, status string) error
 	ListTopics(ctx context.Context) ([]model.Topic, error)
 	CreateTopic(ctx context.Context, name string, weight int) (model.Topic, error)

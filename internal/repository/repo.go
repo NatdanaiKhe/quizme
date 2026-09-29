@@ -183,6 +183,19 @@ func (r *Repo) GetQuestion(ctx context.Context, id int) (model.Question, error) 
 	return q, nil
 }
 
+// HasUserAnswered returns true if the question already has an answer recorded.
+func (r *Repo) HasUserAnswered(ctx context.Context, questionID int) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM user_answers WHERE question_id = $1)`,
+		questionID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check question %d answered: %w", questionID, err)
+	}
+	return exists, nil
+}
+
 // GetQuestionsByBatch returns every question for a batch.
 func (r *Repo) GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Question, error) {
 	rows, err := r.pool.Query(ctx,
@@ -205,6 +218,50 @@ func (r *Repo) GetQuestionsByBatch(ctx context.Context, batchID int) ([]model.Qu
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("select questions rows for batch %d: %w", batchID, err)
+	}
+	return questions, nil
+}
+
+// GetQuestionsWithAnswers returns every question for a batch along with any recorded user answer.
+func (r *Repo) GetQuestionsWithAnswers(ctx context.Context, batchID int) ([]model.QuestionWithAnswer, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT
+			q.id, q.batch_id, q.topic_id, q.prompt, q.options,
+			q.correct_option, q.explanation, q.source, q.created_at,
+			ua.selected_option, ua.is_correct, ua.answered_at
+		 FROM questions q
+		 LEFT JOIN (
+			SELECT DISTINCT ON (question_id) question_id, selected_option, is_correct, answered_at
+			FROM user_answers
+			ORDER BY question_id, answered_at DESC
+		 ) ua ON q.id = ua.question_id
+		 WHERE q.batch_id = $1
+		 ORDER BY q.id`,
+		batchID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("select questions with answers for batch %d: %w", batchID, err)
+	}
+	defer rows.Close()
+
+	var questions []model.QuestionWithAnswer
+	for rows.Next() {
+		var qa model.QuestionWithAnswer
+		var optionsJSON []byte
+		if err := rows.Scan(
+			&qa.ID, &qa.BatchID, &qa.TopicID, &qa.Prompt, &optionsJSON,
+			&qa.CorrectOption, &qa.Explanation, &qa.Source, &qa.CreatedAt,
+			&qa.SelectedOption, &qa.IsCorrect, &qa.AnsweredAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan question with answer for batch %d: %w", batchID, err)
+		}
+		if err := json.Unmarshal(optionsJSON, &qa.Options); err != nil {
+			return nil, fmt.Errorf("unmarshal options for question %d: %w", qa.ID, err)
+		}
+		questions = append(questions, qa)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("select questions with answers rows for batch %d: %w", batchID, err)
 	}
 	return questions, nil
 }
