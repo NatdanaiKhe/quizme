@@ -23,7 +23,7 @@ func init() {
 
 type mockQuizService struct {
 	batch       model.QuizBatch
-	questions   []model.Question
+	questions   []model.QuestionWithAnswer
 	topics      []model.Topic
 	correct     bool
 	explanation *string
@@ -31,7 +31,7 @@ type mockQuizService struct {
 	answerErr   error
 }
 
-func (m *mockQuizService) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Question, error) {
+func (m *mockQuizService) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.QuestionWithAnswer, error) {
 	return m.batch, m.questions, m.err
 }
 
@@ -77,14 +77,16 @@ func (m *mockGenerateService) Generate(ctx context.Context) error {
 
 func TestGetTodayQuiz(t *testing.T) {
 	batch := model.QuizBatch{BatchDate: time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC), Status: "success"}
-	questions := []model.Question{
+	questions := []model.QuestionWithAnswer{
 		{
-			ID:            1,
-			TopicID:       7,
-			Prompt:        "What is 2+2?",
-			Options:       []model.Option{{ID: "a", Text: "3"}, {ID: "b", Text: "4"}},
-			CorrectOption: "b",
-			Explanation:   strPtr("math"),
+			Question: model.Question{
+				ID:            1,
+				TopicID:       7,
+				Prompt:        "What is 2+2?",
+				Options:       []model.Option{{ID: "a", Text: "3"}, {ID: "b", Text: "4"}},
+				CorrectOption: "b",
+				Explanation:   strPtr("math"),
+			},
 		},
 	}
 	topics := []model.Topic{{ID: 7, Name: "Math"}}
@@ -108,6 +110,9 @@ func TestGetTodayQuiz(t *testing.T) {
 	if body["batch_date"] != "2026-09-22" {
 		t.Fatalf("want batch_date 2026-09-22, got %v", body["batch_date"])
 	}
+	if body["completed"] != false {
+		t.Fatalf("want completed false, got %v", body["completed"])
+	}
 
 	qs := body["questions"].([]any)
 	if len(qs) != 1 {
@@ -124,6 +129,59 @@ func TestGetTodayQuiz(t *testing.T) {
 	}
 	if strings.Contains(bodyStr, "explanation") {
 		t.Fatal("response leaks explanation")
+	}
+}
+
+func TestGetTodayQuizCompleted(t *testing.T) {
+	batch := model.QuizBatch{BatchDate: time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC), Status: "success"}
+	selOpt := "b"
+	isCorrect := true
+	questions := []model.QuestionWithAnswer{
+		{
+			Question: model.Question{
+				ID:            1,
+				TopicID:       7,
+				Prompt:        "What is 2+2?",
+				Options:       []model.Option{{ID: "a", Text: "3"}, {ID: "b", Text: "4"}},
+				CorrectOption: "b",
+				Explanation:   strPtr("math"),
+			},
+			SelectedOption: &selOpt,
+			IsCorrect:      &isCorrect,
+		},
+	}
+	topics := []model.Topic{{ID: 7, Name: "Math"}}
+
+	router := gin.New()
+	svc := &mockQuizService{batch: batch, questions: questions, topics: topics}
+	router.GET("/quiz/today", GetTodayQuiz(svc))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/quiz/today", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if body["completed"] != true {
+		t.Fatalf("want completed true, got %v", body["completed"])
+	}
+
+	qs := body["questions"].([]any)
+	q := qs[0].(map[string]any)
+	if q["user_answer"] != "b" {
+		t.Fatalf("want user_answer 'b', got %v", q["user_answer"])
+	}
+	if q["correct_option"] != "b" {
+		t.Fatalf("want correct_option 'b', got %v", q["correct_option"])
+	}
+	if q["explanation"] != "math" {
+		t.Fatalf("want explanation 'math', got %v", q["explanation"])
 	}
 }
 
@@ -194,6 +252,21 @@ func TestSubmitAnswerNotFound(t *testing.T) {
 
 	if w.Code != http.StatusNotFound {
 		t.Fatalf("want 404, got %d", w.Code)
+	}
+}
+
+func TestSubmitAnswerAlreadyAnswered(t *testing.T) {
+	router := gin.New()
+	svc := &mockQuizService{answerErr: service.ErrAlreadyAnswered}
+	router.POST("/quiz/answer", SubmitAnswer(svc))
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/quiz/answer", bytes.NewReader([]byte(`{"question_id":1,"option":"a"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("want 409, got %d", w.Code)
 	}
 }
 

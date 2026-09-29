@@ -11,8 +11,13 @@ import (
 
 type answerRepo struct {
 	Repository
-	q   model.Question
-	err error
+	q        model.Question
+	err      error
+	answered bool
+}
+
+func (a answerRepo) HasUserAnswered(ctx context.Context, questionID int) (bool, error) {
+	return a.answered, nil
 }
 
 func (a answerRepo) GetQuestion(ctx context.Context, id int) (model.Question, error) {
@@ -70,5 +75,16 @@ func TestAnswerNotFound(t *testing.T) {
 	_, _, err := svc.Answer(context.Background(), 999, "a")
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("want ErrNotFound, got %v", err)
+	}
+}
+
+func TestAnswerAlreadyAnswered(t *testing.T) {
+	svc := &Service{
+		Repo: answerRepo{answered: true},
+	}
+
+	_, _, err := svc.Answer(context.Background(), 1, "a")
+	if !errors.Is(err, ErrAlreadyAnswered) {
+		t.Fatalf("want ErrAlreadyAnswered, got %v", err)
 	}
 }

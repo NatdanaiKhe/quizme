@@ -15,12 +15,21 @@ var ErrNoQuiz = errors.New("no quiz available")
 // ErrNotFound is returned when a referenced question does not exist.
 var ErrNotFound = errors.New("not found")
 
-// GetTodayQuiz serves today's successful batch, or the latest successful batch
-// as a fallback. It never creates a pending batch.
+// ErrAlreadyAnswered is returned when an answer has already been submitted for a question.
+var ErrAlreadyAnswered = errors.New("question already answered")
+
 // Answer compares the selected option against the stored correct option and
 // records the answer transactionally. It returns whether the answer was correct
 // and the question's explanation (which may be nil).
 func (s *Service) Answer(ctx context.Context, questionID int, selectedOption string) (bool, *string, error) {
+	answered, err := s.Repo.HasUserAnswered(ctx, questionID)
+	if err != nil {
+		return false, nil, err
+	}
+	if answered {
+		return false, nil, ErrAlreadyAnswered
+	}
+
 	q, err := s.Repo.GetQuestion(ctx, questionID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -51,7 +60,9 @@ func (s *Service) GetStats(ctx context.Context) ([]model.UserTopicStats, error) 
 	return s.Repo.GetStats(ctx)
 }
 
-func (s *Service) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Question, error) {
+// GetTodayQuiz serves today's successful batch, or the latest successful batch
+// as a fallback. It never creates a pending batch. Questions include any user answer recorded.
+func (s *Service) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.QuestionWithAnswer, error) {
 	today := s.Now().UTC().Truncate(24 * time.Hour)
 
 	batch, err := s.Repo.GetBatchByDate(ctx, today)
@@ -60,7 +71,7 @@ func (s *Service) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Qu
 			return model.QuizBatch{}, nil, err
 		}
 	} else if batch.Status == "success" {
-		questions, err := s.Repo.GetQuestionsByBatch(ctx, batch.ID)
+		questions, err := s.Repo.GetQuestionsWithAnswers(ctx, batch.ID)
 		if err != nil {
 			return model.QuizBatch{}, nil, err
 		}
@@ -75,7 +86,7 @@ func (s *Service) GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Qu
 		return model.QuizBatch{}, nil, err
 	}
 
-	questions, err := s.Repo.GetQuestionsByBatch(ctx, batch.ID)
+	questions, err := s.Repo.GetQuestionsWithAnswers(ctx, batch.ID)
 	if err != nil {
 		return model.QuizBatch{}, nil, err
 	}
