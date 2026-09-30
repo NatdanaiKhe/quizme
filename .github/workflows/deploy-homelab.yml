@@ -1,15 +1,14 @@
-name: Build & Deploy (Homelab)
+name: Build & Deploy
 
 # Homelab deployment pipeline (Traefik + GHCR + Tailscale).
 #
-#   push (tags v*) / PR -> lint + test + build
-#   push tags           -> build + push images to GHCR (sha + git-tag)
-#                       -> deploy to homelab over Tailscale SSH
+#   push tags (v*) -> lint + test + build
+#                  -> build + push images to GHCR (sha + git-tag)
+#                  -> deploy to homelab over Tailscale SSH
 
 on:
   push:
     tags: ["v*"]
-  pull_request:
 
 permissions:
   contents: read
