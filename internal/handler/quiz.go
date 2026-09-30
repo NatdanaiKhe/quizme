@@ -14,7 +14,7 @@ import (
 
 // QuizService is the handler's view of the service layer.
 type QuizService interface {
-	GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.Question, error)
+	GetTodayQuiz(ctx context.Context) (model.QuizBatch, []model.QuestionWithAnswer, error)
 	Answer(ctx context.Context, questionID int, selectedOption string) (bool, *string, error)
 	ListTopics(ctx context.Context) ([]model.Topic, error)
 }
@@ -26,14 +26,19 @@ type StatsService interface {
 
 // publicQuestion is the answer-safe question shape sent to clients.
 type publicQuestion struct {
-	ID      int            `json:"id"`
-	Topic   string         `json:"topic"`
-	Prompt  string         `json:"prompt"`
-	Options []model.Option `json:"options"`
+	ID            int            `json:"id"`
+	Topic         string         `json:"topic"`
+	Prompt        string         `json:"prompt"`
+	Options       []model.Option `json:"options"`
+	UserAnswer    *string        `json:"user_answer,omitempty"`
+	IsCorrect     *bool          `json:"is_correct,omitempty"`
+	CorrectOption *string        `json:"correct_option,omitempty"`
+	Explanation   *string        `json:"explanation,omitempty"`
 }
 
 type todayResponse struct {
 	BatchDate string           `json:"batch_date"`
+	Completed bool             `json:"completed"`
 	Questions []publicQuestion `json:"questions"`
 }
 
@@ -72,18 +77,29 @@ func GetTodayQuiz(svc QuizService) gin.HandlerFunc {
 			topicByID[t.ID] = t.Name
 		}
 
+		allAnswered := len(questions) > 0
 		public := make([]publicQuestion, len(questions))
 		for i, q := range questions {
-			public[i] = publicQuestion{
+			pq := publicQuestion{
 				ID:      q.ID,
 				Topic:   topicName(topicByID, q.TopicID),
 				Prompt:  q.Prompt,
 				Options: q.Options,
 			}
+			if q.SelectedOption != nil {
+				pq.UserAnswer = q.SelectedOption
+				pq.IsCorrect = q.IsCorrect
+				pq.CorrectOption = &q.CorrectOption
+				pq.Explanation = q.Explanation
+			} else {
+				allAnswered = false
+			}
+			public[i] = pq
 		}
 
 		c.JSON(http.StatusOK, todayResponse{
 			BatchDate: batch.BatchDate.Format(time.DateOnly),
+			Completed: allAnswered,
 			Questions: public,
 		})
 	}
@@ -107,6 +123,10 @@ func SubmitAnswer(svc QuizService) gin.HandlerFunc {
 		if err != nil {
 			if errors.Is(err, service.ErrNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "question not found"})
+				return
+			}
+			if errors.Is(err, service.ErrAlreadyAnswered) {
+				c.JSON(http.StatusConflict, gin.H{"error": "question already answered"})
 				return
 			}
 			log.Printf("submit answer: %v", err)
