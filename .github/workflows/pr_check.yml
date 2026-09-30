@@ -1,4 +1,4 @@
-name: Lint & Test (PR)
+name: Lint, Test & Build (PR)
 
 on:
   pull_request:
@@ -18,8 +18,8 @@ permissions:
   contents: read
 
 jobs:
-  frontend:
-    name: Frontend (Lint & Build)
+  lint-test:
+    name: Lint, test & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,20 +31,14 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: cd frontend && npm ci
 
-      - name: Lint
+      - name: Frontend lint
         run: cd frontend && npm run lint
 
-      - name: Build
+      - name: Frontend build
         run: cd frontend && npm run build
-
-  backend:
-    name: Backend (Format, Vet, Test & Build)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -66,5 +60,5 @@ jobs:
       - name: Go test
         run: go test -v -race ./...
 
-      - name: Verify build
+      - name: Verify server build
         run: go build -v -o /dev/null cmd/server/main.go
