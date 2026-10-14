@@ -3,6 +3,7 @@
 APP_NAME ?= quizme
 BIN_DIR ?= bin
 DOCKER_IMAGE ?= $(APP_NAME):latest
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 all: build
 
@@ -19,7 +20,7 @@ build-frontend: ## Build React frontend production assets
 build-backend: ## Build Go monolith binary (embedding frontend/dist)
 	@echo "==> Building Go binary..."
 	mkdir -p $(BIN_DIR)
-	go build -o $(BIN_DIR)/$(APP_NAME) cmd/server/main.go
+	go build -ldflags="-X 'main.Version=$(VERSION)'" -o $(BIN_DIR)/$(APP_NAME) cmd/server/main.go
 
 build: build-frontend build-backend ## Build both frontend and Go monolith binary
 
@@ -59,7 +60,7 @@ lint: lint-backend lint-frontend ## Run all linters (Go and frontend)
 
 docker-build: ## Build monolith Docker image
 	@echo "==> Building Docker image $(DOCKER_IMAGE)..."
-	docker build --network=host --load -t $(DOCKER_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) --network=host --load -t $(DOCKER_IMAGE) .
 
 clean: ## Remove build artifacts
 	@echo "==> Cleaning artifacts..."
