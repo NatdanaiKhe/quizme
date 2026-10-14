@@ -18,6 +18,22 @@ import (
 	"github.com/natdanai/quizme/internal/service"
 )
 
+// Version is the application version, set at build time via -ldflags.
+var Version = "dev"
+
+func getVersion() string {
+	if v := os.Getenv("APP_VERSION"); v != "" {
+		return v
+	}
+	if v := os.Getenv("VERSION"); v != "" {
+		return v
+	}
+	if Version != "" {
+		return Version
+	}
+	return "dev"
+}
+
 func main() {
 	cfg := config.Load()
 
@@ -48,7 +64,10 @@ func setupRouter(cfg config.Config, svc *service.Service) *gin.Engine {
 	r.Use(corsMiddleware(defaultString(os.Getenv("CORS_ORIGIN"), "http://localhost:5173")))
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"version": getVersion(),
+		})
 	})
 	r.GET("/openapi.yaml", func(c *gin.Context) {
 		c.Data(http.StatusOK, "application/yaml", docs.OpenAPIYAML)

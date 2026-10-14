@@ -25,8 +25,12 @@ paths:
                   status:
                     type: string
                     example: ok
+                  version:
+                    type: string
+                    example: v1.0.0
                 required:
                   - status
+                  - version
 
   /quiz/today:
     get:

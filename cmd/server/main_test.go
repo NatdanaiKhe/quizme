@@ -29,7 +29,7 @@ func TestMonolithRouter(t *testing.T) {
 			method:       http.MethodGet,
 			path:         "/health",
 			wantStatus:   http.StatusOK,
-			wantContains: `{"status":"ok"}`,
+			wantContains: `{"status":"ok","version":"dev"}`,
 		},
 		{
 			name:         "OpenAPI specification endpoint",
@@ -89,4 +89,43 @@ func TestMonolithRouter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHealthEndpoint_Version(t *testing.T) {
+	router := setupRouter(config.Config{}, nil)
+
+	t.Run("default version", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+		if !strings.Contains(w.Body.String(), `"version":"dev"`) {
+			t.Errorf("body does not contain dev version; got: %s", w.Body.String())
+		}
+	})
+
+	t.Run("env APP_VERSION override", func(t *testing.T) {
+		t.Setenv("APP_VERSION", "v1.2.3")
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		router.ServeHTTP(w, req)
+
+		if !strings.Contains(w.Body.String(), `"version":"v1.2.3"`) {
+			t.Errorf("body does not contain overridden version; got: %s", w.Body.String())
+		}
+	})
+
+	t.Run("env VERSION override", func(t *testing.T) {
+		t.Setenv("VERSION", "v2.0.0")
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		router.ServeHTTP(w, req)
+
+		if !strings.Contains(w.Body.String(), `"version":"v2.0.0"`) {
+			t.Errorf("body does not contain overridden version; got: %s", w.Body.String())
+		}
+	})
 }
