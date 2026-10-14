@@ -13,12 +13,13 @@ RUN npm run build
 
 # Stage 2: Build Go Backend Monolith (embeds frontend/dist)
 FROM golang:alpine AS backend-builder
+ARG VERSION=dev
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/quizme ./cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X 'main.Version=${VERSION}'" -o /app/bin/quizme ./cmd/server/main.go
 
 # Stage 3: Minimal Runtime Container
 FROM alpine:3.21 AS app
